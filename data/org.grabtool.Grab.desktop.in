@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=Grab
+Comment=Capture the entire screen and copy it to the clipboard
+Exec="@EXECUTABLE@"
+Icon=org.grabtool.Grab
+Terminal=false
+Categories=Utility;
+Keywords=screenshot;screen;capture;clipboard;
+StartupNotify=false
+DBusActivatable=false
+Actions=Preferences;
+
+[Desktop Action Preferences]
+Name=Preferences
+Exec="@EXECUTABLE@" --preferences
