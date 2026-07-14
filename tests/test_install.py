@@ -18,6 +18,7 @@ class InstallerTests(unittest.TestCase):
                     "HOME": str(root / "home"),
                     "XDG_DATA_HOME": str(root / "data"),
                     "XDG_BIN_HOME": str(root / "bin"),
+                    "GRAB_SKIP_EXTENSION_ENABLE": "1",
                 }
             )
             for _ in range(2):
@@ -36,6 +37,10 @@ class InstallerTests(unittest.TestCase):
             self.assertTrue(desktop.is_file())
             self.assertTrue(launcher.is_symlink())
             self.assertIn(f'Exec="{launcher}"', desktop.read_text(encoding="utf-8"))
+            self.assertIn("NoDisplay=true", desktop.read_text(encoding="utf-8"))
+            extension = root / "data/gnome-shell/extensions/grab@grabtool.org"
+            self.assertTrue((extension / "extension.js").is_file())
+            self.assertTrue((extension / "metadata.json").is_file())
             validator = subprocess.run(
                 ["desktop-file-validate", str(desktop)],
                 stdout=subprocess.PIPE,
@@ -59,6 +64,7 @@ class InstallerTests(unittest.TestCase):
                 )
             self.assertFalse(desktop.exists())
             self.assertFalse(launcher.exists())
+            self.assertFalse(extension.exists())
             self.assertTrue(config.exists())
 
 

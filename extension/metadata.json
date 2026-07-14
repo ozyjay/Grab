@@ -1,0 +1,11 @@
+{
+  "uuid": "grab@grabtool.org",
+  "name": "Grab Screenshot",
+  "description": "Take a whole-desktop screenshot from the GNOME top bar",
+  "shell-version": [
+    "48",
+    "49",
+    "50"
+  ],
+  "version": 1
+}

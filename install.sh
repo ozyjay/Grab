@@ -2,10 +2,12 @@
 set -eu
 
 APP_ID=org.grabtool.Grab
+EXTENSION_UUID=grab@grabtool.org
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DATA_HOME=${XDG_DATA_HOME:-"$HOME/.local/share"}
 BIN_HOME=${XDG_BIN_HOME:-"$HOME/.local/bin"}
 APP_DIR="$DATA_HOME/org.grabtool.Grab"
+EXTENSION_DIR="$DATA_HOME/gnome-shell/extensions/$EXTENSION_UUID"
 APPLICATIONS_DIR="$DATA_HOME/applications"
 ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
 BIN_PATH="$BIN_HOME/grab"
@@ -18,6 +20,9 @@ elif ! /usr/bin/python3 -c "import gi; gi.require_version('Gtk','4.0'); gi.requi
 fi
 if ! command -v gdbus >/dev/null 2>&1; then
     missing="$missing glib2"
+fi
+if ! command -v gnome-extensions >/dev/null 2>&1; then
+    missing="$missing gnome-shell"
 fi
 if command -v rpm >/dev/null 2>&1; then
     if ! rpm -q xdg-desktop-portal >/dev/null 2>&1; then
@@ -41,9 +46,12 @@ case "$BIN_PATH" in
         ;;
 esac
 
-mkdir -p "$APP_DIR/src" "$BIN_HOME" "$APPLICATIONS_DIR" "$ICON_DIR"
+mkdir -p "$APP_DIR/src" "$EXTENSION_DIR" "$BIN_HOME" "$APPLICATIONS_DIR" "$ICON_DIR"
 rm -rf "$APP_DIR/src/grab_app"
 cp -R "$SCRIPT_DIR/src/grab_app" "$APP_DIR/src/grab_app"
+rm -f "$EXTENSION_DIR/extension.js" "$EXTENSION_DIR/metadata.json"
+install -m 644 "$SCRIPT_DIR/extension/extension.js" "$EXTENSION_DIR/extension.js"
+install -m 644 "$SCRIPT_DIR/extension/metadata.json" "$EXTENSION_DIR/metadata.json"
 install -m 755 "$SCRIPT_DIR/grab" "$APP_DIR/grab"
 ln -sfn "$APP_DIR/grab" "$BIN_PATH"
 install -m 644 "$SCRIPT_DIR/data/$APP_ID.svg" "$ICON_DIR/$APP_ID.svg"
@@ -60,4 +68,10 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f -t "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
 fi
 
-printf '%s\n' "Grab installed successfully. Find it in the Fedora application menu."
+if [ "${GRAB_SKIP_EXTENSION_ENABLE:-0}" != "1" ]; then
+    /usr/bin/python3 -c "from gi.repository import Gio; s=Gio.Settings.new('org.gnome.shell'); v=s.get_strv('enabled-extensions'); u='$EXTENSION_UUID'; s.set_strv('enabled-extensions', v if u in v else [*v, u])"
+    gnome-extensions enable "$EXTENSION_UUID" >/dev/null 2>&1 || true
+fi
+
+printf '%s\n' "Grab installed successfully. Its camera icon appears in the GNOME top bar."
+printf '%s\n' "If this is the first installation, log out and back in once to load the extension."

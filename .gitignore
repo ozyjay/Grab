@@ -62,6 +62,8 @@ _build/
 
 # Generated application and translation artifacts
 *.desktop.tmp
+*.shell-extension.zip
+gschemas.compiled
 *.pot
 *.mo
 locale/
