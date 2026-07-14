@@ -68,10 +68,21 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f -t "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
 fi
 
+extension_refreshed=0
 if [ "${GRAB_SKIP_EXTENSION_ENABLE:-0}" != "1" ]; then
+    if gnome-extensions info "$EXTENSION_UUID" >/dev/null 2>&1; then
+        gnome-extensions disable "$EXTENSION_UUID" >/dev/null 2>&1 || true
+        if gnome-extensions enable "$EXTENSION_UUID" >/dev/null 2>&1; then
+            extension_refreshed=1
+        fi
+    fi
+
     /usr/bin/python3 -c "from gi.repository import Gio; s=Gio.Settings.new('org.gnome.shell'); v=s.get_strv('enabled-extensions'); u='$EXTENSION_UUID'; s.set_strv('enabled-extensions', v if u in v else [*v, u])"
-    gnome-extensions enable "$EXTENSION_UUID" >/dev/null 2>&1 || true
 fi
 
-printf '%s\n' "Grab installed successfully. Its camera icon appears in the GNOME top bar."
-printf '%s\n' "If this is the first installation, log out and back in once to load the extension."
+printf '%s\n' "Grab installed successfully."
+if [ "$extension_refreshed" -eq 1 ]; then
+    printf '%s\n' "The top-bar extension was disabled and re-enabled to refresh its camera icon."
+else
+    printf '%s\n' "Log out and back in once so GNOME Shell can load the new top-bar extension."
+fi

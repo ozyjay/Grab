@@ -12,8 +12,10 @@ timestamped PNG is optional and disabled by default.
 ./install.sh
 ```
 
-After installation, log out and back in if the camera icon does not immediately
-appear. Left-click the top-bar icon to capture. Right-click it to open
+The installer automatically disables and re-enables an extension GNOME Shell
+already knows about. GNOME caches new or changed extension JavaScript, however,
+so a first installation or extension-code upgrade can still require one logout
+and login. Left-click the top-bar icon to capture. Right-click it to open
 **Preferences** and enable saving under `Pictures/Screenshots`.
 
 The first capture can display Fedora's screenshot permission prompt. This is a

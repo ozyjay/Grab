@@ -9,6 +9,14 @@ PROJECT = Path(__file__).resolve().parents[1]
 
 
 class InstallerTests(unittest.TestCase):
+    def test_installer_contains_safe_extension_refresh(self):
+        source = (PROJECT / "install.sh").read_text(encoding="utf-8")
+        info = source.index('gnome-extensions info "$EXTENSION_UUID"')
+        disable = source.index('gnome-extensions disable "$EXTENSION_UUID"')
+        enable = source.index('gnome-extensions enable "$EXTENSION_UUID"')
+        self.assertLess(info, disable)
+        self.assertLess(disable, enable)
+
     def test_install_and_uninstall_are_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
