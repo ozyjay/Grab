@@ -1,0 +1,114 @@
+# Python bytecode and interpreter caches
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+
+# Native extension modules
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test, type-checker, linter, and coverage output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+junit.xml
+
+# Python build and packaging output
+build/
+dist/
+downloads/
+sdist/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+MANIFEST
+
+# RPM packaging output
+*.rpm
+*.src.rpm
+rpmbuild/
+BUILD/
+BUILDROOT/
+RPMS/
+SRPMS/
+SOURCES/
+SPECS/
+
+# Flatpak and Meson output, if packaging is added later
+.flatpak-builder/
+flatpak-build/
+repo/
+.mesonpy-*/
+meson-logs/
+meson-private/
+_build/
+
+# Generated application and translation artifacts
+*.desktop.tmp
+*.pot
+*.mo
+locale/
+
+# IDE and editor state
+.idea/
+.vscode/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*.swn
+*~
+.#*
+
+# Operating-system and desktop-manager files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+.directory
+
+# Logs, temporary files, and local scratch data
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+.cache/
+tmp/
+temp/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# Local test screenshots and runtime data
+Screenshots/
+Screenshot *.png
+settings.json
