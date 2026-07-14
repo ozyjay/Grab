@@ -38,6 +38,9 @@ class ExtensionTests(unittest.TestCase):
         self.assertIn("Clutter.BUTTON_PRIMARY", source)
         self.assertIn("Clutter.BUTTON_SECONDARY", source)
         self.assertIn("'--preferences'", source)
+        self.assertIn("new Shell.Screenshot()", source)
+        self.assertIn("St.Clipboard.get_default().set_content", source)
+        self.assertIn("'--capture-file'", source)
         self.assertIn("Gio.Subprocess.new", source)
 
 

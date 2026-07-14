@@ -26,6 +26,7 @@ class CaptureCoordinator:
         clipboard_owned: Callable[[object], None],
         finished: Callable[[], None],
         pictures: Callable[[], Path] = pictures_directory,
+        clipboard_already_set: bool = False,
     ) -> None:
         self.portal = portal
         self.config = config
@@ -35,6 +36,7 @@ class CaptureCoordinator:
         self.clipboard_owned = clipboard_owned
         self.finished = finished
         self.pictures = pictures
+        self.clipboard_already_set = clipboard_already_set
 
     def capture(self) -> None:
         try:
@@ -77,8 +79,9 @@ class CaptureCoordinator:
                     shutil.copy2(source, saved)
                 except Exception as error:
                     save_error = error
-            self.set_clipboard(image)
-            self.clipboard_owned(image)
+            if not self.clipboard_already_set:
+                self.set_clipboard(image)
+                self.clipboard_owned(image)
             if save_error:
                 self.notify("Screenshot copied", f"Could not save a copy: {save_error}")
             elif saved:

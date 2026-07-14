@@ -19,7 +19,7 @@ class FakePortal:
 
 
 class CaptureTests(unittest.TestCase):
-    def make_coordinator(self, portal, config, pictures):
+    def make_coordinator(self, portal, config, pictures, clipboard_already_set=False):
         self.notifications = []
         self.clipboard = []
         self.owned = []
@@ -37,6 +37,7 @@ class CaptureTests(unittest.TestCase):
             clipboard_owned=self.owned.append,
             finished=finish,
             pictures=lambda: pictures,
+            clipboard_already_set=clipboard_already_set,
         )
 
     def test_success_copies_and_removes_temporary_file(self):
@@ -70,6 +71,25 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(len(saved), 1)
             self.assertEqual(saved[0].read_bytes(), b"png")
             self.assertEqual(self.notifications[0][0], "Screenshot copied and saved")
+
+    def test_shell_owned_clipboard_is_not_replaced_by_helper(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "shell.png"
+            source.write_bytes(b"png")
+            coordinator = self.make_coordinator(
+                FakePortal(CaptureResult("success", source.as_uri())),
+                ConfigStore(root / "config.json"),
+                root,
+                clipboard_already_set=True,
+            )
+
+            coordinator.capture()
+
+            self.assertEqual(self.clipboard, [])
+            self.assertEqual(self.owned, [])
+            self.assertFalse(source.exists())
+            self.assertEqual(self.notifications, [("Screenshot copied", None)])
 
     def test_cancelled_and_portal_error(self):
         with tempfile.TemporaryDirectory() as temporary:

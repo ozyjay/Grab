@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -25,9 +26,60 @@ class GrabIndicator extends PanelMenu.Button {
             Gio.Subprocess.new(
                 [this._helperPath, ...arguments_],
                 Gio.SubprocessFlags.NONE);
+            return true;
         } catch (error) {
             Main.notify(
                 'Grab could not start',
+                error instanceof Error ? error.message : String(error));
+            return false;
+        }
+    }
+
+    _capture() {
+        if (this._captureInProgress)
+            return;
+
+        this._captureInProgress = true;
+        const filename = `grab-${GLib.uuid_string_random()}.png`;
+        const path = GLib.build_filenamev([
+            GLib.get_user_runtime_dir(),
+            filename,
+        ]);
+        const file = Gio.File.new_for_path(path);
+        let stream;
+
+        try {
+            stream = file.create(Gio.FileCreateFlags.PRIVATE, null);
+            const screenshot = new Shell.Screenshot();
+            screenshot.screenshot(false, stream, (source, result) => {
+                try {
+                    source.screenshot_finish(result);
+                    stream.close(null);
+                    const [bytes] = file.load_bytes(null);
+                    St.Clipboard.get_default().set_content(
+                        St.ClipboardType.CLIPBOARD,
+                        'image/png',
+                        bytes);
+                    if (!this._launch('--capture-file', path))
+                        file.delete_async(GLib.PRIORITY_DEFAULT, null, null);
+                } catch (error) {
+                    try {
+                        stream.close(null);
+                    } catch (_closeError) {
+                        // The original capture error is more useful.
+                    }
+                    file.delete_async(GLib.PRIORITY_DEFAULT, null, null);
+                    Main.notify(
+                        'Grab could not take a screenshot',
+                        error instanceof Error ? error.message : String(error));
+                } finally {
+                    this._captureInProgress = false;
+                }
+            });
+        } catch (error) {
+            this._captureInProgress = false;
+            Main.notify(
+                'Grab could not take a screenshot',
                 error instanceof Error ? error.message : String(error));
         }
     }
@@ -35,7 +87,7 @@ class GrabIndicator extends PanelMenu.Button {
     vfunc_button_press_event(event) {
         switch (event.get_button()) {
         case Clutter.BUTTON_PRIMARY:
-            this._launch();
+            this._capture();
             return Clutter.EVENT_STOP;
         case Clutter.BUTTON_SECONDARY:
             this._launch('--preferences');
@@ -50,7 +102,7 @@ class GrabIndicator extends PanelMenu.Button {
         if (symbol === Clutter.KEY_Return ||
             symbol === Clutter.KEY_KP_Enter ||
             symbol === Clutter.KEY_space) {
-            this._launch();
+            this._capture();
             return Clutter.EVENT_STOP;
         }
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from typing import Callable
 
 import gi
 
@@ -15,7 +16,17 @@ from gi.repository import Gdk, Gio, GLib, Gtk
 from . import APP_ID, APP_NAME
 from .config import ConfigStore
 from .core import CaptureCoordinator
-from .portal import ScreenshotPortal
+from .portal import CaptureResult, ScreenshotPortal
+
+
+class CapturedFile:
+    """Adapt a screenshot created by GNOME Shell to the capture workflow."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def capture(self, callback: Callable[[CaptureResult], None]) -> None:
+        callback(CaptureResult("success", uri=self.path.as_uri()))
 
 
 class GrabApplication(Gtk.Application):
@@ -28,7 +39,7 @@ class GrabApplication(Gtk.Application):
         self.preferences_window: Gtk.ApplicationWindow | None = None
         self._clipboard_holding = False
         self._clipboard_image: object | None = None
-        self._portal: ScreenshotPortal | None = None
+        self._portal: object | None = None
         self._capture_in_progress = False
 
     def do_startup(self) -> None:
@@ -42,14 +53,32 @@ class GrabApplication(Gtk.Application):
 
     def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
         arguments = command_line.get_arguments()[1:]
-        if "--preferences" in arguments:
+        if arguments == ["--preferences"]:
             self.activate_action("preferences", None)
+            return 0
+        if len(arguments) == 2 and arguments[0] == "--capture-file":
+            try:
+                path = self._validated_capture_path(Path(arguments[1]))
+            except (OSError, ValueError) as error:
+                self._notify("Screenshot failed", str(error))
+                return 1
+            self._begin_capture(CapturedFile(path), clipboard_already_set=True)
             return 0
         if arguments:
             command_line.printerr("Usage: grab [--preferences]\n")
             return 2
         self.activate()
         return 0
+
+    @staticmethod
+    def _validated_capture_path(path: Path) -> Path:
+        path = path.resolve(strict=True)
+        runtime_directory = Path(GLib.get_user_runtime_dir()).resolve(strict=True)
+        if path.parent != runtime_directory or not path.name.startswith("grab-"):
+            raise ValueError("The screenshot file is outside Grab's runtime directory.")
+        if path.suffix.lower() != ".png" or not path.is_file():
+            raise ValueError("The screenshot file is invalid.")
+        return path
 
     def _notify(self, title: str, body: str | None) -> None:
         notification = Gio.Notification.new(title)
@@ -85,13 +114,21 @@ class GrabApplication(Gtk.Application):
             self.release()
 
     def take_screenshot(self) -> None:
+        try:
+            portal = ScreenshotPortal()
+        except Exception as error:
+            self._notify("Screenshot failed", str(error))
+            return
+        self._begin_capture(portal)
+
+    def _begin_capture(self, portal: object, clipboard_already_set: bool = False) -> None:
         if self._capture_in_progress:
             self._notify("Screenshot already in progress", None)
             return
         self._capture_in_progress = True
         self.hold()
         try:
-            self._portal = ScreenshotPortal()
+            self._portal = portal
             coordinator = CaptureCoordinator(
                 portal=self._portal,
                 config=self.config,
@@ -100,6 +137,7 @@ class GrabApplication(Gtk.Application):
                 notify=self._notify,
                 clipboard_owned=self._own_clipboard,
                 finished=self._capture_finished,
+                clipboard_already_set=clipboard_already_set,
             )
             coordinator.capture()
         except Exception as error:

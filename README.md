@@ -2,9 +2,10 @@
 
 Grab is a one-click, whole-desktop screenshot tool for Fedora Workstation. Its
 camera icon lives in the GNOME top bar, while the capture helper stays hidden
-from the application grid. Grab uses the XDG Screenshot portal, copies the
-result to the Wayland clipboard, and shows a desktop notification. Saving a
-timestamped PNG is optional and disabled by default.
+from the application grid. The extension captures the desktop through GNOME
+Shell, then its helper copies the result to the Wayland clipboard and shows a
+desktop notification. Saving a timestamped PNG is optional and disabled by
+default.
 
 ## Install
 
@@ -17,9 +18,6 @@ already knows about. GNOME caches new or changed extension JavaScript, however,
 so a first installation or extension-code upgrade can still require one logout
 and login. Left-click the top-bar icon to capture. Right-click it to open
 **Preferences** and enable saving under `Pictures/Screenshots`.
-
-The first capture can display Fedora's screenshot permission prompt. This is a
-security feature of the portal and is not bypassed.
 
 ## Commands
 
