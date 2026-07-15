@@ -35,6 +35,7 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         self.complete = complete
         self.cancel = cancel
         self._resolved = False
+        self._mode = "pen"
         self._drag_origin: tuple[float, float] | None = None
         self._crop_selection: CropRectangle | None = None
         self._crop_drag_handle: str | None = None
@@ -91,8 +92,8 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         self.crop_button = Gtk.ToggleButton.new_with_label("Crop")
         self.crop_button.set_group(self.pen_button)
         self.pen_button.set_active(True)
-        self.pen_button.connect("toggled", self._mode_changed)
-        self.crop_button.connect("toggled", self._mode_changed)
+        self.pen_button.connect("clicked", lambda *_args: self._select_mode("pen"))
+        self.crop_button.connect("clicked", lambda *_args: self._select_mode("crop"))
         toolbar.append(self.pen_button)
         toolbar.append(self.crop_button)
 
@@ -177,7 +178,7 @@ class AnnotationWindow(Gtk.ApplicationWindow):
 
     def _draw_crop_selection(self, context: cairo.Context, scale: float) -> None:
         selection = self._crop_selection
-        if not self.crop_button.get_active() or selection is None:
+        if self._mode != "crop" or selection is None:
             return
         crop = self.document.crop
         context.save()
@@ -227,7 +228,7 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         self._drag_origin = (x, y) if point is not None else None
         if point is None:
             return
-        if self.crop_button.get_active():
+        if self._mode == "crop":
             self._begin_crop_drag(point)
             return
         rgba = self.colour_button.get_rgba()
@@ -246,9 +247,9 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         point = self._image_point(
             self._drag_origin[0] + offset_x,
             self._drag_origin[1] + offset_y,
-            clamp=self.crop_button.get_active(),
+            clamp=self._mode == "crop",
         )
-        if self.crop_button.get_active():
+        if self._mode == "crop":
             if point is not None:
                 self._update_crop_drag(point)
             return
@@ -260,7 +261,7 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         self, _gesture: Gtk.GestureDrag, _offset_x: float, _offset_y: float
     ) -> None:
         if self._drag_origin is not None:
-            if self.crop_button.get_active():
+            if self._mode == "crop":
                 self._crop_drag_handle = None
                 self._crop_drag_start = None
             else:
@@ -329,11 +330,13 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         self._update_buttons()
         self.canvas.queue_draw()
 
-    def _mode_changed(self, _button: Gtk.ToggleButton) -> None:
-        if not self.pen_button.get_active() and not self.crop_button.get_active():
-            self.pen_button.set_active(True)
-            return
-        crop_mode = self.crop_button.get_active()
+    def _select_mode(self, mode: str) -> None:
+        if mode not in ("pen", "crop"):
+            raise ValueError(f"Unknown editor mode: {mode}")
+        self._mode = mode
+        crop_mode = mode == "crop"
+        self.pen_button.set_active(not crop_mode)
+        self.crop_button.set_active(crop_mode)
         self.colour_button.set_sensitive(not crop_mode)
         self.width_scale.set_sensitive(not crop_mode)
         self.apply_crop_button.set_visible(crop_mode)
@@ -348,15 +351,11 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         if self._crop_selection is not None:
             self.document.apply_crop(self._crop_selection)
         self._crop_selection = None
-        self.pen_button.set_active(True)
-        self._update_buttons()
-        self.canvas.queue_draw()
+        self._select_mode("pen")
 
     def _cancel_crop_mode(self) -> None:
         self._crop_selection = None
-        self.pen_button.set_active(True)
-        self._update_buttons()
-        self.canvas.queue_draw()
+        self._select_mode("pen")
 
     def _undo(self) -> None:
         self._crop_selection = None
@@ -389,7 +388,7 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         state: Gdk.ModifierType,
     ) -> bool:
         if keyval == Gdk.KEY_Escape:
-            if self.crop_button.get_active():
+            if self._mode == "crop":
                 self._cancel_crop_mode()
                 return True
             self._cancel()
