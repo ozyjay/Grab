@@ -9,6 +9,7 @@ BIN_HOME=${XDG_BIN_HOME:-"$HOME/.local/bin"}
 APP_DIR="$DATA_HOME/org.grabtool.Grab"
 EXTENSION_DIR="$DATA_HOME/gnome-shell/extensions/$EXTENSION_UUID"
 APPLICATIONS_DIR="$DATA_HOME/applications"
+DBUS_SERVICES_DIR="$DATA_HOME/dbus-1/services"
 ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
 BIN_PATH="$BIN_HOME/grab"
 
@@ -49,7 +50,7 @@ case "$BIN_PATH" in
         ;;
 esac
 
-mkdir -p "$APP_DIR/src" "$EXTENSION_DIR" "$BIN_HOME" "$APPLICATIONS_DIR" "$ICON_DIR"
+mkdir -p "$APP_DIR/src" "$EXTENSION_DIR" "$BIN_HOME" "$APPLICATIONS_DIR" "$DBUS_SERVICES_DIR" "$ICON_DIR"
 rm -rf "$APP_DIR/src/grab_app"
 cp -R "$SCRIPT_DIR/src/grab_app" "$APP_DIR/src/grab_app"
 rm -f "$EXTENSION_DIR/extension.js" "$EXTENSION_DIR/metadata.json"
@@ -63,6 +64,9 @@ escaped_executable=$(printf '%s' "$BIN_PATH" | sed 's/[\\&|]/\\&/g')
 sed "s|@EXECUTABLE@|$escaped_executable|g" \
     "$SCRIPT_DIR/data/$APP_ID.desktop.in" > "$APPLICATIONS_DIR/$APP_ID.desktop"
 chmod 644 "$APPLICATIONS_DIR/$APP_ID.desktop"
+sed "s|@EXECUTABLE@|$escaped_executable|g" \
+    "$SCRIPT_DIR/data/$APP_ID.service.in" > "$DBUS_SERVICES_DIR/$APP_ID.service"
+chmod 644 "$DBUS_SERVICES_DIR/$APP_ID.service"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$APPLICATIONS_DIR" >/dev/null 2>&1 || true

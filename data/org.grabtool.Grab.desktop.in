@@ -9,7 +9,7 @@ NoDisplay=true
 Categories=Utility;
 Keywords=screenshot;screen;capture;clipboard;
 StartupNotify=false
-DBusActivatable=false
+DBusActivatable=true
 Actions=Preferences;
 
 [Desktop Action Preferences]

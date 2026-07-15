@@ -46,11 +46,18 @@ class InstallerTests(unittest.TestCase):
                 )
 
             desktop = root / "data/applications/org.grabtool.Grab.desktop"
+            service = root / "data/dbus-1/services/org.grabtool.Grab.service"
             launcher = root / "bin/grab"
             self.assertTrue(desktop.is_file())
+            self.assertTrue(service.is_file())
             self.assertTrue(launcher.is_symlink())
             self.assertIn(f'Exec="{launcher}"', desktop.read_text(encoding="utf-8"))
             self.assertIn("NoDisplay=true", desktop.read_text(encoding="utf-8"))
+            self.assertIn("DBusActivatable=true", desktop.read_text(encoding="utf-8"))
+            self.assertIn(
+                f'Exec="{launcher}" --gapplication-service',
+                service.read_text(encoding="utf-8"),
+            )
             extension = root / "data/gnome-shell/extensions/grab@grabtool.org"
             self.assertTrue((extension / "extension.js").is_file())
             self.assertTrue((extension / "metadata.json").is_file())
@@ -76,6 +83,7 @@ class InstallerTests(unittest.TestCase):
                     text=True,
                 )
             self.assertFalse(desktop.exists())
+            self.assertFalse(service.exists())
             self.assertFalse(launcher.exists())
             self.assertFalse(extension.exists())
             self.assertTrue(config.exists())

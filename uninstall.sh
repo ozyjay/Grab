@@ -8,6 +8,7 @@ BIN_HOME=${XDG_BIN_HOME:-"$HOME/.local/bin"}
 APP_DIR="$DATA_HOME/org.grabtool.Grab"
 EXTENSION_DIR="$DATA_HOME/gnome-shell/extensions/$EXTENSION_UUID"
 APPLICATIONS_DIR="$DATA_HOME/applications"
+DBUS_SERVICES_DIR="$DATA_HOME/dbus-1/services"
 ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
 BIN_PATH="$BIN_HOME/grab"
 
@@ -23,6 +24,7 @@ if [ -L "$BIN_PATH" ]; then
     fi
 fi
 rm -f "$APPLICATIONS_DIR/$APP_ID.desktop"
+rm -f "$DBUS_SERVICES_DIR/$APP_ID.service"
 rm -f "$ICON_DIR/$APP_ID.svg"
 rm -rf "$EXTENSION_DIR"
 rm -rf "$APP_DIR"
