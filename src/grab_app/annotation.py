@@ -1,9 +1,10 @@
-"""Annotation strokes, rendering, and pending screenshot storage."""
+"""Screenshot editing, rendering, and pending screenshot storage."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -27,13 +28,53 @@ class Stroke:
     points: tuple[tuple[float, float], ...]
 
 
+@dataclass(frozen=True)
+class CropRectangle:
+    """A pixel-aligned crop rectangle in original-image coordinates."""
+
+    left: int
+    top: int
+    right: int
+    bottom: int
+
+    @property
+    def width(self) -> int:
+        return self.right - self.left
+
+    @property
+    def height(self) -> int:
+        return self.bottom - self.top
+
+
+@dataclass(frozen=True)
+class EditState:
+    strokes: tuple[Stroke, ...]
+    crop: CropRectangle
+
+
+def normalise_crop(
+    first: tuple[float, float],
+    second: tuple[float, float],
+    bounds: CropRectangle,
+) -> CropRectangle | None:
+    """Return a clamped, outward-rounded crop or None for an empty selection."""
+    left = max(bounds.left, math.floor(min(first[0], second[0])))
+    top = max(bounds.top, math.floor(min(first[1], second[1])))
+    right = min(bounds.right, math.ceil(max(first[0], second[0])))
+    bottom = min(bounds.bottom, math.ceil(max(first[1], second[1])))
+    if right <= left or bottom <= top:
+        return None
+    return CropRectangle(left, top, right, bottom)
+
+
 class AnnotationDocument:
-    """Mutable stroke history for an image-sized drawing surface."""
+    """Mutable crop and stroke history for an image-sized drawing surface."""
 
     def __init__(self, width: int, height: int) -> None:
         self.width = width
         self.height = height
-        self._history: list[tuple[Stroke, ...]] = [()]
+        initial = EditState((), CropRectangle(0, 0, width, height))
+        self._history: list[EditState] = [initial]
         self._history_index = 0
         self._current_colour: tuple[float, float, float, float] | None = None
         self._current_width = 0.0
@@ -41,6 +82,14 @@ class AnnotationDocument:
 
     @property
     def strokes(self) -> tuple[Stroke, ...]:
+        return self.state.strokes
+
+    @property
+    def crop(self) -> CropRectangle:
+        return self.state.crop
+
+    @property
+    def state(self) -> EditState:
         return self._history[self._history_index]
 
     @property
@@ -74,7 +123,7 @@ class AnnotationDocument:
             self._current_width,
             tuple(self._current_points),
         )
-        self._commit((*self.strokes, stroke))
+        self._commit(EditState((*self.strokes, stroke), self.crop))
         self._current_colour = None
         self._current_points = []
 
@@ -93,7 +142,22 @@ class AnnotationDocument:
     def clear(self) -> bool:
         if not self.strokes:
             return False
-        self._commit(())
+        self._commit(EditState((), self.crop))
+        return True
+
+    def apply_crop(self, crop: CropRectangle) -> bool:
+        if (
+            crop.width <= 0
+            or crop.height <= 0
+            or crop.left < self.crop.left
+            or crop.top < self.crop.top
+            or crop.right > self.crop.right
+            or crop.bottom > self.crop.bottom
+        ):
+            return False
+        if crop == self.crop:
+            return False
+        self._commit(EditState(self.strokes, crop))
         return True
 
     def all_strokes(self) -> tuple[Stroke, ...]:
@@ -106,9 +170,9 @@ class AnnotationDocument:
         )
         return (*self.strokes, current)
 
-    def _commit(self, strokes: tuple[Stroke, ...]) -> None:
+    def _commit(self, state: EditState) -> None:
         del self._history[self._history_index + 1 :]
-        self._history.append(strokes)
+        self._history.append(state)
         self._history_index += 1
 
     def _clamp(self, point: tuple[float, float]) -> tuple[float, float]:
@@ -158,25 +222,52 @@ def canvas_to_image(
     image_height: int,
     canvas_width: int,
     canvas_height: int,
+    viewport: CropRectangle | None = None,
+    clamp: bool = False,
 ) -> tuple[float, float] | None:
+    if viewport is None:
+        viewport = CropRectangle(0, 0, image_width, image_height)
     scale, offset_x, offset_y = fit_image(
-        image_width, image_height, canvas_width, canvas_height
+        viewport.width, viewport.height, canvas_width, canvas_height
     )
-    image_x = (x - offset_x) / scale
-    image_y = (y - offset_y) / scale
-    if not (0 <= image_x <= image_width and 0 <= image_y <= image_height):
+    image_x = (x - offset_x) / scale + viewport.left
+    image_y = (y - offset_y) / scale + viewport.top
+    if not (
+        viewport.left <= image_x <= viewport.right
+        and viewport.top <= image_y <= viewport.bottom
+    ):
+        if clamp:
+            return (
+                min(max(image_x, viewport.left), viewport.right),
+                min(max(image_y, viewport.top), viewport.bottom),
+            )
         return None
     return image_x, image_y
 
 
 def render_annotation(
-    source: Path, destination: Path, strokes: Iterable[Stroke]
+    source: Path,
+    destination: Path,
+    strokes: Iterable[Stroke],
+    crop: CropRectangle | None = None,
 ) -> None:
     surface = cairo.ImageSurface.create_from_png(str(source))
+    if crop is None:
+        crop = CropRectangle(0, 0, surface.get_width(), surface.get_height())
+    if (
+        crop.width <= 0
+        or crop.height <= 0
+        or crop.left < 0
+        or crop.top < 0
+        or crop.right > surface.get_width()
+        or crop.bottom > surface.get_height()
+    ):
+        raise ValueError("The crop rectangle is invalid.")
     output = cairo.ImageSurface(
-        cairo.FORMAT_ARGB32, surface.get_width(), surface.get_height()
+        cairo.FORMAT_ARGB32, crop.width, crop.height
     )
     context = cairo.Context(output)
+    context.translate(-crop.left, -crop.top)
     context.set_source_surface(surface)
     context.paint()
     draw_strokes(context, strokes)

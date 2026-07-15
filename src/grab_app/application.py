@@ -114,7 +114,7 @@ class GrabApplication(Gtk.Application):
         notification.set_default_action("app.dismiss-notification")
         if annotation_token:
             notification.add_button_with_target(
-                "Annotate",
+                "Edit",
                 "app.annotate",
                 GLib.Variant("s", annotation_token),
             )
@@ -172,13 +172,18 @@ class GrabApplication(Gtk.Application):
         os.close(fd)
         output = Path(output_name)
         try:
-            render_annotation(pending.image_path, output, document.all_strokes())
+            render_annotation(
+                pending.image_path,
+                output,
+                document.all_strokes(),
+                document.crop,
+            )
             image = self._load_image(output)
             self._set_clipboard(image)
             self._own_clipboard(image)
         except Exception as error:
             output.unlink(missing_ok=True)
-            return f"Could not copy the annotated screenshot: {error}"
+            return f"Could not copy the edited screenshot: {error}"
 
         save_error: Exception | None = None
         if pending.saved_path is not None:
@@ -191,11 +196,11 @@ class GrabApplication(Gtk.Application):
         self._annotations.delete(pending.token)
         if save_error:
             self._notify(
-                "Screenshot annotated",
+                "Screenshot edited",
                 f"Could not replace the saved copy: {save_error}",
             )
         else:
-            self._notify("Screenshot annotated", None)
+            self._notify("Screenshot edited", None)
         return None
 
     def _cancel_annotation(self, pending: PendingAnnotation) -> None:

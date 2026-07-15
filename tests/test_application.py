@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, patch
 
 import cairo
 
-from grab_app.annotation import AnnotationDocument, PendingAnnotationStore
+from grab_app.annotation import (
+    AnnotationDocument,
+    CropRectangle,
+    PendingAnnotationStore,
+)
 from grab_app.application import GrabApplication
 
 
@@ -45,7 +49,7 @@ class ApplicationTests(unittest.TestCase):
             application._notify("Screenshot copied", None, "abc123")
 
         arguments = notification.add_button_with_target.call_args.args
-        self.assertEqual(arguments[:2], ("Annotate", "app.annotate"))
+        self.assertEqual(arguments[:2], ("Edit", "app.annotate"))
         self.assertEqual(arguments[2].unpack(), "abc123")
 
     def test_shell_capture_must_be_a_runtime_png(self):
@@ -103,6 +107,7 @@ class ApplicationTests(unittest.TestCase):
             document.begin_stroke((1, 4), (1, 0, 0, 1), 3)
             document.append_point((11, 4))
             document.end_stroke()
+            document.apply_crop(CropRectangle(2, 1, 10, 7))
             application = GrabApplication()
             application._annotations = store
 
@@ -118,6 +123,8 @@ class ApplicationTests(unittest.TestCase):
             set_clipboard.assert_called_once_with("texture")
             own_clipboard.assert_called_once_with("texture")
             self.assertNotEqual(saved.read_bytes(), original)
+            rendered = cairo.ImageSurface.create_from_png(str(saved))
+            self.assertEqual((rendered.get_width(), rendered.get_height()), (8, 6))
             self.assertFalse(pending.image_path.exists())
 
     def test_clipboard_failure_keeps_pending_annotation_and_saved_original(self):
