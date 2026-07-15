@@ -11,8 +11,8 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
 const GrabIndicator = GObject.registerClass(
 class GrabIndicator extends PanelMenu.Button {
-    constructor(helperPath) {
-        super(0.0, 'Grab Screenshot', false);
+    _init(helperPath) {
+        super._init(0.0, 'Grab Screenshot', true);
 
         this._helperPath = helperPath;
         this.add_child(new St.Icon({

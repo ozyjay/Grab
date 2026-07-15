@@ -35,6 +35,8 @@ class ExtensionTests(unittest.TestCase):
 
     def test_click_contract_is_present(self):
         source = (EXTENSION / "extension.js").read_text(encoding="utf-8")
+        self.assertIn("_init(helperPath)", source)
+        self.assertIn("super._init(0.0, 'Grab Screenshot', true)", source)
         self.assertIn("Clutter.BUTTON_PRIMARY", source)
         self.assertIn("Clutter.BUTTON_SECONDARY", source)
         self.assertIn("'--preferences'", source)
