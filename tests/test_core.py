@@ -23,19 +23,30 @@ class CaptureTests(unittest.TestCase):
         self.notifications = []
         self.clipboard = []
         self.owned = []
+        self.staged = []
+        self.annotation_tokens = []
         self.finished = 0
 
         def finish():
             self.finished += 1
+
+        def stage(source, saved):
+            self.staged.append((source.exists(), saved))
+            return "annotation-token"
+
+        def notify(title, body, annotation_token):
+            self.notifications.append((title, body))
+            self.annotation_tokens.append(annotation_token)
 
         return CaptureCoordinator(
             portal=portal,
             config=config,
             load_image=lambda path: path.read_bytes(),
             set_clipboard=self.clipboard.append,
-            notify=lambda title, body: self.notifications.append((title, body)),
+            notify=notify,
             clipboard_owned=self.owned.append,
             finished=finish,
+            stage_annotation=stage,
             pictures=lambda: pictures,
             clipboard_already_set=clipboard_already_set,
         )
@@ -54,6 +65,8 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(self.owned, [b"png"])
             self.assertFalse(source.exists())
             self.assertEqual(self.notifications, [("Screenshot copied", None)])
+            self.assertEqual(self.staged, [(True, None)])
+            self.assertEqual(self.annotation_tokens, ["annotation-token"])
             self.assertEqual(self.finished, 1)
 
     def test_save_copy_creates_screenshot(self):

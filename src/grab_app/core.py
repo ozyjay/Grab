@@ -22,9 +22,10 @@ class CaptureCoordinator:
         config: ConfigStore,
         load_image: Callable[[Path], object],
         set_clipboard: Callable[[object], None],
-        notify: Callable[[str, str | None], None],
+        notify: Callable[[str, str | None, str | None], None],
         clipboard_owned: Callable[[object], None],
         finished: Callable[[], None],
+        stage_annotation: Callable[[Path, Path | None], str],
         pictures: Callable[[], Path] = pictures_directory,
         clipboard_already_set: bool = False,
     ) -> None:
@@ -35,6 +36,7 @@ class CaptureCoordinator:
         self.notify = notify
         self.clipboard_owned = clipboard_owned
         self.finished = finished
+        self.stage_annotation = stage_annotation
         self.pictures = pictures
         self.clipboard_already_set = clipboard_already_set
 
@@ -42,7 +44,7 @@ class CaptureCoordinator:
         try:
             self.portal.capture(self._on_result)
         except Exception as error:
-            self.notify("Screenshot failed", str(error))
+            self.notify("Screenshot failed", str(error), None)
             self.finished()
 
     @staticmethod
@@ -57,17 +59,20 @@ class CaptureCoordinator:
 
     def _on_result(self, result: CaptureResult) -> None:
         if result.status == "cancelled":
-            self.notify("Screenshot cancelled", None)
+            self.notify("Screenshot cancelled", None, None)
             self.finished()
             return
         if result.status != "success" or not result.uri:
-            self.notify("Screenshot failed", result.message or "Unknown screenshot error.")
+            self.notify(
+                "Screenshot failed", result.message or "Unknown screenshot error.", None
+            )
             self.finished()
             return
 
         source: Path | None = None
         saved: Path | None = None
         save_error: Exception | None = None
+        annotation_error: Exception | None = None
         try:
             source = self._path_from_uri(result.uri)
             image = self.load_image(source)
@@ -82,14 +87,30 @@ class CaptureCoordinator:
             if not self.clipboard_already_set:
                 self.set_clipboard(image)
                 self.clipboard_owned(image)
+            annotation_token: str | None = None
+            try:
+                annotation_token = self.stage_annotation(source, saved)
+            except Exception as error:
+                annotation_error = error
             if save_error:
-                self.notify("Screenshot copied", f"Could not save a copy: {save_error}")
+                body = f"Could not save a copy: {save_error}"
+                if annotation_error:
+                    body += f"\nAnnotation unavailable: {annotation_error}"
+                self.notify("Screenshot copied", body, annotation_token)
             elif saved:
-                self.notify("Screenshot copied and saved", str(saved))
+                body = str(saved)
+                if annotation_error:
+                    body += f"\nAnnotation unavailable: {annotation_error}"
+                self.notify("Screenshot copied and saved", body, annotation_token)
             else:
-                self.notify("Screenshot copied", None)
+                body = (
+                    f"Annotation unavailable: {annotation_error}"
+                    if annotation_error
+                    else None
+                )
+                self.notify("Screenshot copied", body, annotation_token)
         except Exception as error:
-            self.notify("Screenshot failed", str(error))
+            self.notify("Screenshot failed", str(error), None)
         finally:
             if source is not None:
                 try:

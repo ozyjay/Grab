@@ -18,6 +18,9 @@ if [ ! -x /usr/bin/python3 ]; then
 elif ! /usr/bin/python3 -c "import gi; gi.require_version('Gtk','4.0'); gi.require_version('Gdk','4.0'); from gi.repository import Gtk, Gdk, Gio, GLib" >/dev/null 2>&1; then
     missing="$missing python3-gobject gtk4"
 fi
+if ! /usr/bin/python3 -c "import cairo" >/dev/null 2>&1; then
+    missing="$missing python3-cairo"
+fi
 if ! command -v gdbus >/dev/null 2>&1; then
     missing="$missing glib2"
 fi

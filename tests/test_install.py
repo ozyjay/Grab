@@ -17,6 +17,11 @@ class InstallerTests(unittest.TestCase):
         self.assertLess(info, disable)
         self.assertLess(disable, enable)
 
+    def test_installer_checks_annotation_dependency(self):
+        source = (PROJECT / "install.sh").read_text(encoding="utf-8")
+        self.assertIn('python3 -c "import cairo"', source)
+        self.assertIn("python3-cairo", source)
+
     def test_install_and_uninstall_are_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

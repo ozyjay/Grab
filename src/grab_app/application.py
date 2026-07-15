@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import sys
+import tempfile
 from typing import Callable
 
 import gi
@@ -14,8 +16,16 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk
 
 from . import APP_ID, APP_NAME
-from .config import ConfigStore
+from .annotation import (
+    AnnotationDocument,
+    PendingAnnotation,
+    PendingAnnotationStore,
+    render_annotation,
+    replace_saved_copy,
+)
+from .config import ConfigStore, pictures_directory
 from .core import CaptureCoordinator
+from .editor import AnnotationWindow
 from .portal import CaptureResult, ScreenshotPortal
 
 
@@ -41,12 +51,26 @@ class GrabApplication(Gtk.Application):
         self._clipboard_image: object | None = None
         self._portal: object | None = None
         self._capture_in_progress = False
+        self._annotation_windows: dict[str, AnnotationWindow] = {}
+        self._annotations = PendingAnnotationStore(
+            Path(GLib.get_user_runtime_dir()),
+            self._screenshots_directory(),
+        )
 
     def do_startup(self) -> None:
         Gtk.Application.do_startup(self)
         action = Gio.SimpleAction.new("preferences", None)
         action.connect("activate", lambda *_args: self.show_preferences())
         self.add_action(action)
+
+        action = Gio.SimpleAction.new("dismiss-notification", None)
+        action.connect("activate", self._dismiss_notification)
+        self.add_action(action)
+
+        action = Gio.SimpleAction.new("annotate", GLib.VariantType.new("s"))
+        action.connect("activate", self._open_annotation)
+        self.add_action(action)
+        self._annotations.cleanup()
 
     def do_activate(self) -> None:
         self.take_screenshot()
@@ -80,12 +104,102 @@ class GrabApplication(Gtk.Application):
             raise ValueError("The screenshot file is invalid.")
         return path
 
-    def _notify(self, title: str, body: str | None) -> None:
+    def _notify(
+        self, title: str, body: str | None, annotation_token: str | None = None
+    ) -> None:
         notification = Gio.Notification.new(title)
         if body:
             notification.set_body(body)
         notification.set_icon(Gio.ThemedIcon.new(APP_ID))
+        notification.set_default_action("app.dismiss-notification")
+        if annotation_token:
+            notification.add_button_with_target(
+                "Annotate",
+                "app.annotate",
+                GLib.Variant("s", annotation_token),
+            )
         self.send_notification("capture-status", notification)
+
+    def _dismiss_notification(self, *_args: object) -> None:
+        self.withdraw_notification("capture-status")
+
+    def _screenshots_directory(self) -> Path:
+        return pictures_directory() / "Screenshots"
+
+    def _stage_annotation(self, source: Path, saved: Path | None) -> str:
+        return self._annotations.create(source, saved).token
+
+    def _open_annotation(
+        self, _action: Gio.SimpleAction, parameter: GLib.Variant | None
+    ) -> None:
+        if parameter is None:
+            self._notify("Annotation unavailable", "The annotation token is missing.")
+            return
+        token = parameter.unpack()
+        if not isinstance(token, str):
+            self._notify("Annotation unavailable", "The annotation token is invalid.")
+            return
+        existing = self._annotation_windows.get(token)
+        if existing is not None:
+            existing.present()
+            return
+        try:
+            pending = self._annotations.claim(token)
+            window = AnnotationWindow(
+                self,
+                pending,
+                self._complete_annotation,
+                self._cancel_annotation,
+            )
+        except Exception as error:
+            self._annotations.delete(token)
+            self._notify("Annotation unavailable", str(error))
+            return
+        self.withdraw_notification("capture-status")
+        window.connect("destroy", lambda *_args: self._annotation_windows.pop(token, None))
+        self._annotation_windows[token] = window
+        window.present()
+
+    def _complete_annotation(
+        self, pending: PendingAnnotation, document: AnnotationDocument
+    ) -> str | None:
+        self._annotations.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd, output_name = tempfile.mkstemp(
+            dir=self._annotations.directory,
+            prefix=f".{pending.token}-",
+            suffix=".png",
+        )
+        os.close(fd)
+        output = Path(output_name)
+        try:
+            render_annotation(pending.image_path, output, document.all_strokes())
+            image = self._load_image(output)
+            self._set_clipboard(image)
+            self._own_clipboard(image)
+        except Exception as error:
+            output.unlink(missing_ok=True)
+            return f"Could not copy the annotated screenshot: {error}"
+
+        save_error: Exception | None = None
+        if pending.saved_path is not None:
+            try:
+                destination = self._annotations.validate_saved_path(pending.saved_path)
+                replace_saved_copy(output, destination)
+            except Exception as error:
+                save_error = error
+        output.unlink(missing_ok=True)
+        self._annotations.delete(pending.token)
+        if save_error:
+            self._notify(
+                "Screenshot annotated",
+                f"Could not replace the saved copy: {save_error}",
+            )
+        else:
+            self._notify("Screenshot annotated", None)
+        return None
+
+    def _cancel_annotation(self, pending: PendingAnnotation) -> None:
+        self._annotations.delete(pending.token)
 
     def _load_image(self, path: Path) -> Gdk.Texture:
         return Gdk.Texture.new_from_filename(str(path))
@@ -137,6 +251,7 @@ class GrabApplication(Gtk.Application):
                 notify=self._notify,
                 clipboard_owned=self._own_clipboard,
                 finished=self._capture_finished,
+                stage_annotation=self._stage_annotation,
                 clipboard_already_set=clipboard_already_set,
             )
             coordinator.capture()
