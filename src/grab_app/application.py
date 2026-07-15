@@ -201,14 +201,15 @@ class GrabApplication(Gtk.Application):
     def _cancel_annotation(self, pending: PendingAnnotation) -> None:
         self._annotations.delete(pending.token)
 
-    def _load_image(self, path: Path) -> Gdk.Texture:
-        return Gdk.Texture.new_from_filename(str(path))
+    def _load_image(self, path: Path) -> Gdk.ContentProvider:
+        png = GLib.Bytes.new(path.read_bytes())
+        return Gdk.ContentProvider.new_for_bytes("image/png", png)
 
     def _set_clipboard(self, image: object) -> None:
         display = Gdk.Display.get_default()
         if display is None:
             raise RuntimeError("No graphical display is available.")
-        display.get_clipboard().set(image)
+        display.get_clipboard().set_content(image)
 
     def _own_clipboard(self, image: object) -> None:
         display = Gdk.Display.get_default()

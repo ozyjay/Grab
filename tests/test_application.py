@@ -65,6 +65,28 @@ class ApplicationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     GrabApplication._validated_capture_path(outside)
 
+    def test_loaded_image_exposes_png_clipboard_format(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "source.png"
+            self.make_png(path)
+
+            provider = GrabApplication()._load_image(path)
+
+            self.assertTrue(provider.ref_formats().contain_mime_type("image/png"))
+
+    def test_set_clipboard_uses_content_provider(self):
+        application = GrabApplication()
+        display = MagicMock()
+        clipboard = display.get_clipboard.return_value
+        provider = MagicMock()
+
+        with patch(
+            "grab_app.application.Gdk.Display.get_default", return_value=display
+        ):
+            application._set_clipboard(provider)
+
+        clipboard.set_content.assert_called_once_with(provider)
+
     def test_annotation_completion_replaces_clipboard_and_saved_copy(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
