@@ -7,18 +7,146 @@ import St from 'gi://St';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+
+import {
+    MAX_CUSTOM_DURATION,
+    MIN_CUSTOM_DURATION,
+    parseDuration,
+} from './duration.js';
+
+const SCREENCAST_BUS = 'org.gnome.Shell.Screencast';
+const SCREENCAST_PATH = '/org/gnome/Shell/Screencast';
+const SCREENCAST_INTERFACE = 'org.gnome.Shell.Screencast';
+const RECORDING_DURATIONS = [5, 10, 15, 30, 60];
+
+const DurationDialog = GObject.registerClass(
+class DurationDialog extends ModalDialog.ModalDialog {
+    _init(initialDuration, record) {
+        super._init();
+        this._record = record;
+
+        const title = new St.Label({
+            text: 'Record an animated GIF',
+            style_class: 'headline',
+        });
+        this.contentLayout.add_child(title);
+        const description = new St.Label({
+            text: `Duration in seconds (${MIN_CUSTOM_DURATION}–${MAX_CUSTOM_DURATION})`,
+        });
+        this.contentLayout.add_child(description);
+        this._entry = new St.Entry({
+            text: String(initialDuration),
+            can_focus: true,
+            x_expand: true,
+        });
+        this._entry.clutter_text.set_input_purpose(Clutter.InputContentPurpose.DIGITS);
+        this._entry.clutter_text.connect('text-changed', () => this._validate());
+        this.contentLayout.add_child(this._entry);
+        this._error = new St.Label({
+            text: '',
+            style_class: 'error-label',
+        });
+        this.contentLayout.add_child(this._error);
+
+        this.addButton({
+            label: 'Cancel',
+            action: () => this.close(),
+            key: Clutter.KEY_Escape,
+        });
+        this._recordButton = this.addButton({
+            label: 'Record',
+            action: () => this._submit(),
+            default: true,
+        });
+        this.setInitialKeyFocus(this._entry);
+        this.connect('opened', () => {
+            this._entry.clutter_text.set_selection(0, -1);
+        });
+        this._validate();
+    }
+
+    _duration() {
+        return parseDuration(this._entry.get_text());
+    }
+
+    _validate() {
+        const valid = this._duration() !== null;
+        this._recordButton.reactive = valid;
+        this._recordButton.can_focus = valid;
+        this._error.text = valid
+            ? ''
+            : `Enter a whole number from ${MIN_CUSTOM_DURATION} to ${MAX_CUSTOM_DURATION}.`;
+    }
+
+    _submit() {
+        const duration = this._duration();
+        if (duration === null)
+            return;
+        this.close();
+        this._record(duration);
+    }
+
+});
 
 const GrabIndicator = GObject.registerClass(
 class GrabIndicator extends PanelMenu.Button {
     _init(helperPath) {
-        super._init(0.0, 'Grab Screenshot', true);
+        super._init(0.0, 'Grab', false);
 
         this._helperPath = helperPath;
-        this.add_child(new St.Icon({
+        this._recordingPath = null;
+        this._recordingDuration = 0;
+        this._remaining = 0;
+        this._timerId = 0;
+        this._stopping = false;
+        this._customDuration = 30;
+        this._durationDialog = null;
+        this._destroying = false;
+        this._cancellable = new Gio.Cancellable();
+        this._icon = new St.Icon({
             icon_name: 'camera-photo-symbolic',
             style_class: 'system-status-icon',
-        }));
+        });
+        this.add_child(this._icon);
+
+        this._screencast = Gio.DBusProxy.new_for_bus_sync(
+            Gio.BusType.SESSION,
+            Gio.DBusProxyFlags.NONE,
+            null,
+            SCREENCAST_BUS,
+            SCREENCAST_PATH,
+            SCREENCAST_INTERFACE,
+            null);
+        this._errorSignal = this._screencast.connectSignal(
+            'Error', (_proxy, _sender, [name, message]) => {
+                if (this._recordingPath === null)
+                    return;
+                Main.notify('Grab recording failed', message || name);
+                this._deleteRecording(this._recordingPath);
+                this._resetRecording();
+            });
+
+        this.menu.addAction('Take Screenshot', () => this._capture());
+        const recordingMenu = new PopupMenu.PopupSubMenuMenuItem('Record GIF');
+        for (const duration of RECORDING_DURATIONS) {
+            recordingMenu.menu.addAction(
+                `${duration} seconds`,
+                () => this._startRecording(duration));
+        }
+        recordingMenu.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        recordingMenu.menu.addAction('Custom Duration…', () => this._customRecording());
+        this.menu.addMenuItem(recordingMenu);
+        this._recordingMenu = recordingMenu;
+
+        this._stopItem = new PopupMenu.PopupMenuItem('Stop Recording');
+        this._stopItem.connect('activate', () => this._stopRecording());
+        this._stopItem.visible = false;
+        this.menu.addMenuItem(this._stopItem);
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.menu.addAction('Preferences', () => this._launch('--preferences'));
     }
 
     _launch(...arguments_) {
@@ -36,7 +164,7 @@ class GrabIndicator extends PanelMenu.Button {
     }
 
     _capture() {
-        if (this._captureInProgress)
+        if (this._captureInProgress || this._recordingPath !== null)
             return;
 
         this._captureInProgress = true;
@@ -61,14 +189,14 @@ class GrabIndicator extends PanelMenu.Button {
                         'image/png',
                         bytes);
                     if (!this._launch('--capture-file', path))
-                        file.delete_async(GLib.PRIORITY_DEFAULT, null, null);
+                        this._deleteRecording(path);
                 } catch (error) {
                     try {
                         stream.close(null);
                     } catch (_closeError) {
                         // The original capture error is more useful.
                     }
-                    file.delete_async(GLib.PRIORITY_DEFAULT, null, null);
+                    this._deleteRecording(path);
                     Main.notify(
                         'Grab could not take a screenshot',
                         error instanceof Error ? error.message : String(error));
@@ -84,29 +212,174 @@ class GrabIndicator extends PanelMenu.Button {
         }
     }
 
-    vfunc_button_press_event(event) {
-        switch (event.get_button()) {
-        case Clutter.BUTTON_PRIMARY:
-            this._capture();
-            return Clutter.EVENT_STOP;
-        case Clutter.BUTTON_SECONDARY:
-            this._launch('--preferences');
-            return Clutter.EVENT_STOP;
-        default:
-            return super.vfunc_button_press_event(event);
-        }
+    _customRecording() {
+        if (this._recordingPath !== null)
+            return;
+        this._durationDialog?.close();
+        this._durationDialog = new DurationDialog(this._customDuration, duration => {
+            this._customDuration = duration;
+            this._durationDialog = null;
+            this._startRecording(duration);
+        });
+        this._durationDialog.connect('closed', () => {
+            this._durationDialog = null;
+        });
+        this._durationDialog.open();
     }
 
-    vfunc_key_release_event(event) {
-        const symbol = event.get_key_symbol();
-        if (symbol === Clutter.KEY_Return ||
-            symbol === Clutter.KEY_KP_Enter ||
-            symbol === Clutter.KEY_space) {
-            this._capture();
-            return Clutter.EVENT_STOP;
-        }
+    _startRecording(duration) {
+        if (this._recordingPath !== null || this._captureInProgress)
+            return;
+        const path = GLib.build_filenamev([
+            GLib.get_user_runtime_dir(),
+            `grab-recording-${GLib.uuid_string_random()}.webm`,
+        ]);
+        this._recordingPath = path;
+        this._recordingDuration = duration;
+        const options = {
+            'draw-cursor': new GLib.Variant('b', true),
+            'framerate': new GLib.Variant('i', 15),
+        };
+        this._screencast.call(
+            'Screencast',
+            new GLib.Variant('(sa{sv})', [path, options]),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            this._cancellable,
+            (proxy, result) => {
+                if (this._destroying) {
+                    this._deleteRecording(path);
+                    return;
+                }
+                try {
+                    const [success, filename] = proxy.call_finish(result).deepUnpack();
+                    if (!success || filename !== path)
+                        throw new Error('GNOME Shell could not start the recording.');
+                    this._recordingStarted(duration);
+                } catch (error) {
+                    this._deleteRecording(path);
+                    this._resetRecording();
+                    Main.notify(
+                        'Grab could not start recording',
+                        error instanceof Error ? error.message : String(error));
+                }
+            });
+    }
 
-        return super.vfunc_key_release_event(event);
+    _recordingStarted(duration) {
+        this._remaining = duration;
+        this._icon.icon_name = 'media-record-symbolic';
+        this._recordingMenu.sensitive = false;
+        this._stopItem.visible = true;
+        this._updateStopLabel();
+        this._timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+            this._remaining -= 1;
+            this._updateStopLabel();
+            if (this._remaining <= 0) {
+                this._timerId = 0;
+                this._stopRecording();
+                return GLib.SOURCE_REMOVE;
+            }
+            return GLib.SOURCE_CONTINUE;
+        });
+    }
+
+    _updateStopLabel() {
+        const suffix = this._remaining === 1 ? 'second' : 'seconds';
+        this._stopItem.label.text = `Stop Recording (${this._remaining} ${suffix} remaining)`;
+    }
+
+    _stopRecording() {
+        if (this._recordingPath === null || this._stopping)
+            return;
+        this._stopping = true;
+        if (this._timerId) {
+            GLib.source_remove(this._timerId);
+            this._timerId = 0;
+        }
+        const path = this._recordingPath;
+        this._screencast.call(
+            'StopScreencast',
+            null,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            this._cancellable,
+            (proxy, result) => {
+                if (this._destroying) {
+                    this._deleteRecording(path);
+                    return;
+                }
+                try {
+                    const [success] = proxy.call_finish(result).deepUnpack();
+                    if (!success)
+                        throw new Error('GNOME Shell could not stop the recording cleanly.');
+                    this._resetRecording();
+                    if (!Gio.File.new_for_path(path).query_exists(null))
+                        throw new Error('GNOME Shell did not produce a recording file.');
+                    if (!this._launch('--recording-file', path))
+                        this._deleteRecording(path);
+                } catch (error) {
+                    this._deleteRecording(path);
+                    this._resetRecording();
+                    Main.notify(
+                        'Grab could not finish recording',
+                        error instanceof Error ? error.message : String(error));
+                }
+            });
+    }
+
+    _resetRecording() {
+        if (this._timerId) {
+            GLib.source_remove(this._timerId);
+            this._timerId = 0;
+        }
+        this._recordingPath = null;
+        this._recordingDuration = 0;
+        this._remaining = 0;
+        this._stopping = false;
+        this._icon.icon_name = 'camera-photo-symbolic';
+        this._recordingMenu.sensitive = true;
+        this._stopItem.visible = false;
+        this._stopItem.label.text = 'Stop Recording';
+    }
+
+    _deleteRecording(path) {
+        const file = Gio.File.new_for_path(path);
+        file.delete_async(GLib.PRIORITY_DEFAULT, null, (_file, result) => {
+            try {
+                file.delete_finish(result);
+            } catch (error) {
+                if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+                    console.warn(`Grab could not remove ${path}: ${error.message}`);
+            }
+        });
+    }
+
+    destroy() {
+        this._destroying = true;
+        this._durationDialog?.close();
+        this._durationDialog = null;
+        if (this._recordingPath !== null) {
+            const path = this._recordingPath;
+            try {
+                this._screencast.call_sync(
+                    'StopScreencast',
+                    null,
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    null);
+            } catch (error) {
+                console.warn(`Grab could not stop recording: ${error.message}`);
+            }
+            this._deleteRecording(path);
+        }
+        this._resetRecording();
+        if (this._errorSignal) {
+            this._screencast.disconnectSignal(this._errorSignal);
+            this._errorSignal = 0;
+        }
+        this._cancellable.cancel();
+        super.destroy();
     }
 });
 

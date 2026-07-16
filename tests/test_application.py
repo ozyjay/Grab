@@ -192,6 +192,31 @@ class ApplicationTests(unittest.TestCase):
             self.assertFalse(pending.image_path.exists())
             self.assertIn("Could not replace", notify.call_args.args[1])
 
+    def test_completed_gif_removes_source_and_notifies_with_destination(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "grab-recording-example.webm"
+            destination = root / "Screen Recording.gif"
+            source.write_bytes(b"video")
+            destination.write_bytes(b"gif")
+            application = GrabApplication()
+
+            with patch.object(application, "_notify") as notify:
+                application._complete_gif(source, destination)
+
+            self.assertFalse(source.exists())
+            self.assertTrue(destination.exists())
+            notify.assert_called_once_with("Animated GIF saved", str(destination))
+
+    def test_cancelled_gif_removes_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "grab-recording-example.webm"
+            source.write_bytes(b"video")
+
+            GrabApplication()._cancel_gif(source)
+
+            self.assertFalse(source.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

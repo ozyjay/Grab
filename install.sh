@@ -28,6 +28,13 @@ fi
 if ! command -v gnome-extensions >/dev/null 2>&1; then
     missing="$missing gnome-shell"
 fi
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    missing="$missing ffmpeg-free"
+fi
+if ! command -v gst-inspect-1.0 >/dev/null 2>&1 || \
+        ! gst-inspect-1.0 vp8dec >/dev/null 2>&1; then
+    missing="$missing gstreamer1-plugins-good"
+fi
 if command -v rpm >/dev/null 2>&1; then
     if ! rpm -q xdg-desktop-portal >/dev/null 2>&1; then
         missing="$missing xdg-desktop-portal"
@@ -53,8 +60,9 @@ esac
 mkdir -p "$APP_DIR/src" "$EXTENSION_DIR" "$BIN_HOME" "$APPLICATIONS_DIR" "$DBUS_SERVICES_DIR" "$ICON_DIR"
 rm -rf "$APP_DIR/src/grab_app"
 cp -R "$SCRIPT_DIR/src/grab_app" "$APP_DIR/src/grab_app"
-rm -f "$EXTENSION_DIR/extension.js" "$EXTENSION_DIR/metadata.json"
+rm -f "$EXTENSION_DIR/extension.js" "$EXTENSION_DIR/duration.js" "$EXTENSION_DIR/metadata.json"
 install -m 644 "$SCRIPT_DIR/extension/extension.js" "$EXTENSION_DIR/extension.js"
+install -m 644 "$SCRIPT_DIR/extension/duration.js" "$EXTENSION_DIR/duration.js"
 install -m 644 "$SCRIPT_DIR/extension/metadata.json" "$EXTENSION_DIR/metadata.json"
 install -m 755 "$SCRIPT_DIR/grab" "$APP_DIR/grab"
 ln -sfn "$APP_DIR/grab" "$BIN_PATH"

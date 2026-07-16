@@ -22,6 +22,13 @@ class InstallerTests(unittest.TestCase):
         self.assertIn('python3 -c "import cairo"', source)
         self.assertIn("python3-cairo", source)
 
+    def test_installer_checks_gif_dependencies(self):
+        source = (PROJECT / "install.sh").read_text(encoding="utf-8")
+        self.assertIn("command -v ffmpeg", source)
+        self.assertIn("ffmpeg-free", source)
+        self.assertIn("gst-inspect-1.0 vp8dec", source)
+        self.assertIn("gstreamer1-plugins-good", source)
+
     def test_install_and_uninstall_are_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -60,6 +67,7 @@ class InstallerTests(unittest.TestCase):
             )
             extension = root / "data/gnome-shell/extensions/grab@grabtool.org"
             self.assertTrue((extension / "extension.js").is_file())
+            self.assertTrue((extension / "duration.js").is_file())
             self.assertTrue((extension / "metadata.json").is_file())
             validator = subprocess.run(
                 ["desktop-file-validate", str(desktop)],

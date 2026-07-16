@@ -33,17 +33,32 @@ class ExtensionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue((Path(temporary) / "grab@grabtool.org.shell-extension.zip").is_file())
 
-    def test_click_contract_is_present(self):
+    def test_capture_and_recording_contract_is_present(self):
         source = (EXTENSION / "extension.js").read_text(encoding="utf-8")
+        duration = (EXTENSION / "duration.js").read_text(encoding="utf-8")
         self.assertIn("_init(helperPath)", source)
-        self.assertIn("super._init(0.0, 'Grab Screenshot', true)", source)
-        self.assertIn("Clutter.BUTTON_PRIMARY", source)
-        self.assertIn("Clutter.BUTTON_SECONDARY", source)
-        self.assertIn("'--preferences'", source)
+        self.assertIn("super._init(0.0, 'Grab', false)", source)
+        self.assertIn("'Take Screenshot'", source)
+        self.assertIn("'Record GIF'", source)
+        self.assertIn("'Custom Duration…'", source)
+        self.assertIn("MIN_CUSTOM_DURATION = 1", duration)
+        self.assertIn("MAX_CUSTOM_DURATION = 300", duration)
+        self.assertIn("'StopScreencast'", source)
         self.assertIn("new Shell.Screenshot()", source)
         self.assertIn("St.Clipboard.get_default().set_content", source)
         self.assertIn("'--capture-file'", source)
+        self.assertIn("'--recording-file'", source)
         self.assertIn("Gio.Subprocess.new", source)
+
+    def test_custom_duration_boundaries(self):
+        result = subprocess.run(
+            ["gjs", "-m", str(PROJECT / "tests" / "test_duration.js")],
+            cwd=PROJECT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

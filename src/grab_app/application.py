@@ -26,7 +26,9 @@ from .annotation import (
 from .config import ConfigStore, pictures_directory
 from .core import CaptureCoordinator
 from .editor import AnnotationWindow
+from .gif_editor import GifCropWindow
 from .portal import CaptureResult, ScreenshotPortal
+from .recording import cleanup_recordings, validate_recording_path
 
 
 class CapturedFile:
@@ -52,6 +54,7 @@ class GrabApplication(Gtk.Application):
         self._portal: object | None = None
         self._capture_in_progress = False
         self._annotation_windows: dict[str, AnnotationWindow] = {}
+        self._gif_windows: dict[Path, GifCropWindow] = {}
         self._annotations = PendingAnnotationStore(
             Path(GLib.get_user_runtime_dir()),
             self._screenshots_directory(),
@@ -71,6 +74,7 @@ class GrabApplication(Gtk.Application):
         action.connect("activate", self._open_annotation)
         self.add_action(action)
         self._annotations.cleanup()
+        cleanup_recordings(Path(GLib.get_user_runtime_dir()))
 
     def do_activate(self) -> None:
         self.take_screenshot()
@@ -87,6 +91,16 @@ class GrabApplication(Gtk.Application):
                 self._notify("Screenshot failed", str(error))
                 return 1
             self._begin_capture(CapturedFile(path), clipboard_already_set=True)
+            return 0
+        if len(arguments) == 2 and arguments[0] == "--recording-file":
+            try:
+                path = validate_recording_path(
+                    Path(arguments[1]), Path(GLib.get_user_runtime_dir())
+                )
+            except (OSError, ValueError) as error:
+                self._notify("Recording unavailable", str(error))
+                return 1
+            self._open_gif_editor(path)
             return 0
         if arguments:
             command_line.printerr("Usage: grab [--preferences]\n")
@@ -205,6 +219,33 @@ class GrabApplication(Gtk.Application):
 
     def _cancel_annotation(self, pending: PendingAnnotation) -> None:
         self._annotations.delete(pending.token)
+
+    def _open_gif_editor(self, path: Path) -> None:
+        existing = self._gif_windows.get(path)
+        if existing is not None:
+            existing.present()
+            return
+        try:
+            window = GifCropWindow(
+                self,
+                path,
+                self._complete_gif,
+                self._cancel_gif,
+            )
+        except Exception as error:
+            path.unlink(missing_ok=True)
+            self._notify("Recording unavailable", str(error))
+            return
+        window.connect("destroy", lambda *_args: self._gif_windows.pop(path, None))
+        self._gif_windows[path] = window
+        window.present()
+
+    def _complete_gif(self, source: Path, destination: Path) -> None:
+        source.unlink(missing_ok=True)
+        self._notify("Animated GIF saved", str(destination))
+
+    def _cancel_gif(self, source: Path) -> None:
+        source.unlink(missing_ok=True)
 
     def _load_image(self, path: Path) -> Gdk.ContentProvider:
         png = GLib.Bytes.new(path.read_bytes())
