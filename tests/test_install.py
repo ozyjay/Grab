@@ -16,6 +16,7 @@ class InstallerTests(unittest.TestCase):
         enable = source.index('gnome-extensions enable "$EXTENSION_UUID"')
         self.assertLess(info, disable)
         self.assertLess(disable, enable)
+        self.assertIn('State: ERROR', source)
 
     def test_installer_checks_annotation_dependency(self):
         source = (PROJECT / "install.sh").read_text(encoding="utf-8")

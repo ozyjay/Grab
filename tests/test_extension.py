@@ -50,6 +50,11 @@ class ExtensionTests(unittest.TestCase):
         self.assertIn("'--recording-file'", source)
         self.assertIn("Gio.Subprocess.new", source)
 
+    def test_screencast_proxy_does_not_block_shell_startup(self):
+        source = (EXTENSION / "extension.js").read_text(encoding="utf-8")
+        self.assertIn("Gio.DBusProxy.new_for_bus(", source)
+        self.assertNotIn("Gio.DBusProxy.new_for_bus_sync(", source)
+
     def test_custom_duration_boundaries(self):
         result = subprocess.run(
             ["gjs", "-m", str(PROJECT / "tests" / "test_duration.js")],

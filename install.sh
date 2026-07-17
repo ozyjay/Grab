@@ -88,7 +88,11 @@ if [ "${GRAB_SKIP_EXTENSION_ENABLE:-0}" != "1" ]; then
     if gnome-extensions info "$EXTENSION_UUID" >/dev/null 2>&1; then
         gnome-extensions disable "$EXTENSION_UUID" >/dev/null 2>&1 || true
         if gnome-extensions enable "$EXTENSION_UUID" >/dev/null 2>&1; then
-            extension_refreshed=1
+            extension_info=$(gnome-extensions info "$EXTENSION_UUID" 2>/dev/null || true)
+            case "$extension_info" in
+                *"State: ERROR"*) ;;
+                *) extension_refreshed=1 ;;
+            esac
         fi
     fi
 

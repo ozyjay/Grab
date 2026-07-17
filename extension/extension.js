@@ -106,28 +106,13 @@ class GrabIndicator extends PanelMenu.Button {
         this._durationDialog = null;
         this._destroying = false;
         this._cancellable = new Gio.Cancellable();
+        this._screencast = null;
+        this._errorSignal = 0;
         this._icon = new St.Icon({
             icon_name: 'camera-photo-symbolic',
             style_class: 'system-status-icon',
         });
         this.add_child(this._icon);
-
-        this._screencast = Gio.DBusProxy.new_for_bus_sync(
-            Gio.BusType.SESSION,
-            Gio.DBusProxyFlags.NONE,
-            null,
-            SCREENCAST_BUS,
-            SCREENCAST_PATH,
-            SCREENCAST_INTERFACE,
-            null);
-        this._errorSignal = this._screencast.connectSignal(
-            'Error', (_proxy, _sender, [name, message]) => {
-                if (this._recordingPath === null)
-                    return;
-                Main.notify('Grab recording failed', message || name);
-                this._deleteRecording(this._recordingPath);
-                this._resetRecording();
-            });
 
         this.menu.addAction('Take Screenshot', () => this._capture());
         const recordingMenu = new PopupMenu.PopupSubMenuMenuItem('Record GIF');
@@ -240,28 +225,73 @@ class GrabIndicator extends PanelMenu.Button {
             'draw-cursor': new GLib.Variant('b', true),
             'framerate': new GLib.Variant('i', 15),
         };
-        this._screencast.call(
-            'Screencast',
-            new GLib.Variant('(sa{sv})', [path, options]),
-            Gio.DBusCallFlags.NONE,
-            -1,
+        this._getScreencast((proxy, error) => {
+            if (this._destroying) {
+                this._deleteRecording(path);
+                return;
+            }
+            if (error !== null) {
+                this._deleteRecording(path);
+                this._resetRecording();
+                Main.notify(
+                    'Grab could not start recording',
+                    error instanceof Error ? error.message : String(error));
+                return;
+            }
+            proxy.call(
+                'Screencast',
+                new GLib.Variant('(sa{sv})', [path, options]),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                this._cancellable,
+                (proxy, result) => {
+                    if (this._destroying) {
+                        this._deleteRecording(path);
+                        return;
+                    }
+                    try {
+                        const [success, filename] = proxy.call_finish(result).deepUnpack();
+                        if (!success || filename !== path)
+                            throw new Error('GNOME Shell could not start the recording.');
+                        this._recordingStarted(duration);
+                    } catch (error) {
+                        this._deleteRecording(path);
+                        this._resetRecording();
+                        Main.notify(
+                            'Grab could not start recording',
+                            error instanceof Error ? error.message : String(error));
+                    }
+                });
+        });
+    }
+
+    _getScreencast(callback) {
+        if (this._screencast !== null) {
+            callback(this._screencast, null);
+            return;
+        }
+        Gio.DBusProxy.new_for_bus(
+            Gio.BusType.SESSION,
+            Gio.DBusProxyFlags.NONE,
+            null,
+            SCREENCAST_BUS,
+            SCREENCAST_PATH,
+            SCREENCAST_INTERFACE,
             this._cancellable,
-            (proxy, result) => {
-                if (this._destroying) {
-                    this._deleteRecording(path);
-                    return;
-                }
+            (_source, result) => {
                 try {
-                    const [success, filename] = proxy.call_finish(result).deepUnpack();
-                    if (!success || filename !== path)
-                        throw new Error('GNOME Shell could not start the recording.');
-                    this._recordingStarted(duration);
+                    this._screencast = Gio.DBusProxy.new_for_bus_finish(result);
+                    this._errorSignal = this._screencast.connectSignal(
+                        'Error', (_proxy, _sender, [name, message]) => {
+                            if (this._recordingPath === null)
+                                return;
+                            Main.notify('Grab recording failed', message || name);
+                            this._deleteRecording(this._recordingPath);
+                            this._resetRecording();
+                        });
+                    callback(this._screencast, null);
                 } catch (error) {
-                    this._deleteRecording(path);
-                    this._resetRecording();
-                    Main.notify(
-                        'Grab could not start recording',
-                        error instanceof Error ? error.message : String(error));
+                    callback(null, error);
                 }
             });
     }
@@ -359,7 +389,7 @@ class GrabIndicator extends PanelMenu.Button {
         this._destroying = true;
         this._durationDialog?.close();
         this._durationDialog = null;
-        if (this._recordingPath !== null) {
+        if (this._recordingPath !== null && this._screencast !== null) {
             const path = this._recordingPath;
             try {
                 this._screencast.call_sync(
@@ -374,7 +404,7 @@ class GrabIndicator extends PanelMenu.Button {
             this._deleteRecording(path);
         }
         this._resetRecording();
-        if (this._errorSignal) {
+        if (this._errorSignal && this._screencast !== null) {
             this._screencast.disconnectSignal(this._errorSignal);
             this._errorSignal = 0;
         }
