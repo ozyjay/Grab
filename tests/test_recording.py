@@ -27,8 +27,11 @@ class RecordingTests(unittest.TestCase):
             valid = runtime / "grab-recording-example.webm"
             valid.write_bytes(b"webm")
             self.assertEqual(validate_recording_path(valid, runtime), valid)
+            valid_mp4 = runtime / "grab-recording-example.mp4"
+            valid_mp4.write_bytes(b"mp4")
+            self.assertEqual(validate_recording_path(valid_mp4, runtime), valid_mp4)
 
-            for name in ("other.webm", "grab-recording-example.mp4"):
+            for name in ("other.webm", "grab-recording-example.mkv"):
                 path = runtime / name
                 path.write_bytes(b"video")
                 with self.assertRaises(ValueError):
@@ -48,15 +51,18 @@ class RecordingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             runtime = Path(temporary)
             old = runtime / "grab-recording-old.webm"
+            old_mp4 = runtime / "grab-recording-old.mp4"
             fresh = runtime / "grab-recording-fresh.webm"
             unrelated = runtime / "unrelated.webm"
-            for path in (old, fresh, unrelated):
+            for path in (old, old_mp4, fresh, unrelated):
                 path.write_bytes(b"video")
             old_time = 100.0
             os.utime(old, (old_time, old_time))
+            os.utime(old_mp4, (old_time, old_time))
             os.utime(unrelated, (old_time, old_time))
             cleanup_recordings(runtime, now=1000.0, maximum_age=500)
             self.assertFalse(old.exists())
+            self.assertFalse(old_mp4.exists())
             self.assertTrue(fresh.exists())
             self.assertTrue(unrelated.exists())
 

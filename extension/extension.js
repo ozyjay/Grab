@@ -215,11 +215,11 @@ class GrabIndicator extends PanelMenu.Button {
     _startRecording(duration) {
         if (this._recordingPath !== null || this._captureInProgress)
             return;
-        const path = GLib.build_filenamev([
+        const pathStem = GLib.build_filenamev([
             GLib.get_user_runtime_dir(),
-            `grab-recording-${GLib.uuid_string_random()}.webm`,
+            `grab-recording-${GLib.uuid_string_random()}`,
         ]);
-        this._recordingPath = path;
+        this._recordingPath = pathStem;
         this._recordingDuration = duration;
         const options = {
             'draw-cursor': new GLib.Variant('b', true),
@@ -227,11 +227,11 @@ class GrabIndicator extends PanelMenu.Button {
         };
         this._getScreencast((proxy, error) => {
             if (this._destroying) {
-                this._deleteRecording(path);
+                this._deleteRecording(pathStem);
                 return;
             }
             if (error !== null) {
-                this._deleteRecording(path);
+                this._deleteRecording(pathStem);
                 this._resetRecording();
                 Main.notify(
                     'Grab could not start recording',
@@ -240,29 +240,56 @@ class GrabIndicator extends PanelMenu.Button {
             }
             proxy.call(
                 'Screencast',
-                new GLib.Variant('(sa{sv})', [path, options]),
+                new GLib.Variant('(sa{sv})', [pathStem, options]),
                 Gio.DBusCallFlags.NONE,
                 -1,
                 this._cancellable,
                 (proxy, result) => {
                     if (this._destroying) {
-                        this._deleteRecording(path);
+                        this._deleteRecording(pathStem);
                         return;
                     }
+                    let recordingPath = pathStem;
                     try {
                         const [success, filename] = proxy.call_finish(result).deepUnpack();
-                        if (!success || filename !== path)
+                        const supportedPaths = [
+                            `${pathStem}.mp4`,
+                            `${pathStem}.webm`,
+                        ];
+                        if (!success || !supportedPaths.includes(filename))
                             throw new Error('GNOME Shell could not start the recording.');
+                        recordingPath = filename;
+                        this._recordingPath = recordingPath;
                         this._recordingStarted(duration);
                     } catch (error) {
-                        this._deleteRecording(path);
-                        this._resetRecording();
-                        Main.notify(
-                            'Grab could not start recording',
-                            error instanceof Error ? error.message : String(error));
+                        this._stopFailedRecording(proxy, recordingPath, error);
                     }
                 });
         });
+    }
+
+    _stopFailedRecording(proxy, path, error) {
+        proxy.call(
+            'StopScreencast',
+            null,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            this._cancellable,
+            (proxy, result) => {
+                try {
+                    proxy.call_finish(result);
+                } catch (stopError) {
+                    if (!this._destroying)
+                        console.warn(`Grab could not stop recording: ${stopError.message}`);
+                }
+                this._deleteRecording(path);
+                this._resetRecording();
+                if (!this._destroying) {
+                    Main.notify(
+                        'Grab could not start recording',
+                        error instanceof Error ? error.message : String(error));
+                }
+            });
     }
 
     _getScreencast(callback) {

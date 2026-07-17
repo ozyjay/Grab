@@ -11,7 +11,7 @@ from .annotation import CropRectangle
 
 
 RECORDING_PREFIX = "grab-recording-"
-RECORDING_SUFFIX = ".webm"
+RECORDING_SUFFIXES = frozenset({".mp4", ".webm"})
 MAX_RECORDING_AGE = 24 * 60 * 60
 GIF_FRAME_RATE = 15
 GIF_MAX_DIMENSION = 1280
@@ -27,7 +27,7 @@ def validate_recording_path(path: Path, runtime_directory: Path) -> Path:
         raise ValueError("The recording file is outside Grab's runtime directory.")
     if not path.name.startswith(RECORDING_PREFIX):
         raise ValueError("The recording filename is invalid.")
-    if path.suffix.lower() != RECORDING_SUFFIX or not path.is_file():
+    if path.suffix.lower() not in RECORDING_SUFFIXES or not path.is_file():
         raise ValueError("The recording file is invalid.")
     return path
 
@@ -40,10 +40,14 @@ def cleanup_recordings(
     """Remove abandoned Grab recordings without touching unrelated files."""
     now = time.time() if now is None else now
     try:
-        candidates = runtime_directory.glob(f"{RECORDING_PREFIX}*{RECORDING_SUFFIX}")
+        candidates = runtime_directory.glob(f"{RECORDING_PREFIX}*")
         for candidate in candidates:
             try:
-                if candidate.is_file() and not candidate.is_symlink():
+                if (
+                    candidate.suffix.lower() in RECORDING_SUFFIXES
+                    and candidate.is_file()
+                    and not candidate.is_symlink()
+                ):
                     if now - candidate.stat().st_mtime > maximum_age:
                         candidate.unlink(missing_ok=True)
             except OSError:
