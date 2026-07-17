@@ -149,7 +149,14 @@ class GrabIndicator extends PanelMenu.Button {
         this._stopItem.visible = false;
         this.menu.addMenuItem(this._stopItem);
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.menu.addAction('How to Use Grab', () => this._showHowTo());
         this.menu.addAction('Preferences', () => this._launch('--preferences'));
+    }
+
+    _showHowTo() {
+        Main.notify(
+            'How to use Grab',
+            'Left-click opens this menu. Middle-click starts a 30-second GIF recording. Right-click takes a screenshot.');
     }
 
     _launch(...arguments_) {

@@ -29,7 +29,8 @@ so a first installation or extension-code upgrade can still require one logout
 and login. Select the top-bar icon to open Grab's screenshot, GIF recording,
 and preferences actions. Middle-click the icon to start a 30-second GIF
 recording, or right-click it to take a screenshot directly. **Preferences** can
-enable saving screenshots under `Pictures/Screenshots`.
+enable saving screenshots under `Pictures/Screenshots`. Select **How to Use
+Grab** from the menu for a reminder of these shortcuts.
 
 Select **Edit** on a screenshot notification to open the image editor. Use
 **Pen** to choose a colour and width and draw over the image. Use **Crop** to
