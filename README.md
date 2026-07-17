@@ -7,7 +7,8 @@ Wayland clipboard and can optionally be saved as timestamped PNG files.
 Successful screenshot notifications include an **Edit** action for cropping or
 drawing before replacing the clipboard image. When automatic saving is off, the
 notification also includes a **Save** action that writes the screenshot to
-`Pictures/Screenshots`.
+`Pictures/Screenshots`. Grab keeps temporary editing copies in the private user
+runtime directory for up to 24 hours; they are not permanent saved screenshots.
 
 Grab can also record a silent screencast of the whole desktop, including the
 pointer. Choose a preset duration from **Record GIF**, or enter a custom duration

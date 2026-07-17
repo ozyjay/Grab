@@ -388,7 +388,12 @@ class GrabApplication(Gtk.Application):
         title = Gtk.Label(label="Save screenshots automatically")
         title.set_xalign(0)
         title.add_css_class("heading")
-        description = Gtk.Label(label="Always keep a copy in Pictures/Screenshots")
+        description = Gtk.Label(
+            label=(
+                "Permanent copies go to Pictures/Screenshots. "
+                "Temporary editing copies are kept for up to 24 hours."
+            )
+        )
         description.set_xalign(0)
         description.set_wrap(True)
         description.add_css_class("dim-label")

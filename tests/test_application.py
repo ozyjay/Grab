@@ -68,6 +68,16 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(calls[1].args[1], "app.save-screenshot")
         self.assertEqual(calls[1].args[2].unpack(), "abc123")
 
+    def test_preferences_explain_temporary_copy_retention(self):
+        source = (
+            Path(__file__).resolve().parents[1] / "src" / "grab_app" / "application.py"
+        )
+
+        self.assertIn(
+            "Temporary editing copies are kept for up to 24 hours.",
+            source.read_text(encoding="utf-8"),
+        )
+
     def test_save_action_creates_copy_and_updates_pending_screenshot(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
