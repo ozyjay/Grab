@@ -138,6 +138,22 @@ class AnnotationDocumentTests(unittest.TestCase):
 
 
 class PendingAnnotationStoreTests(unittest.TestCase):
+    def test_saved_path_can_be_attached_to_pending_record(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            screenshots = root / "Pictures" / "Screenshots"
+            screenshots.mkdir(parents=True)
+            source = root / "source.png"
+            saved = screenshots / "Screenshot example.png"
+            make_png(source)
+            make_png(saved)
+            store = PendingAnnotationStore(root / "runtime", screenshots)
+
+            record = store.create(source, None)
+            updated = store.set_saved_path(record.token, saved)
+
+            self.assertEqual(updated.saved_path, saved)
+
     def test_record_can_be_claimed_and_new_capture_removes_unopened_record(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

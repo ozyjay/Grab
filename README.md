@@ -5,7 +5,9 @@ Workstation. Its camera icon lives in the GNOME top bar, while the capture
 helper stays hidden from the application grid. Screenshots are copied to the
 Wayland clipboard and can optionally be saved as timestamped PNG files.
 Successful screenshot notifications include an **Edit** action for cropping or
-drawing before replacing the clipboard image.
+drawing before replacing the clipboard image. When automatic saving is off, the
+notification also includes a **Save** action that writes the screenshot to
+`Pictures/Screenshots`.
 
 Grab can also record a silent screencast of the whole desktop, including the
 pointer. Choose a preset duration from **Record GIF**, or enter a custom duration

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import shutil
 import sys
 import tempfile
 from typing import Callable
@@ -23,7 +24,7 @@ from .annotation import (
     render_annotation,
     replace_saved_copy,
 )
-from .config import ConfigStore, pictures_directory
+from .config import ConfigStore, next_screenshot_path, pictures_directory
 from .core import CaptureCoordinator
 from .editor import AnnotationWindow
 from .gif_editor import GifCropWindow
@@ -73,6 +74,10 @@ class GrabApplication(Gtk.Application):
         action = Gio.SimpleAction.new("annotate", GLib.VariantType.new("s"))
         action.connect("activate", self._open_annotation)
         self.add_action(action)
+
+        action = Gio.SimpleAction.new("save-screenshot", GLib.VariantType.new("s"))
+        action.connect("activate", self._save_screenshot)
+        self.add_action(action)
         self._annotations.cleanup()
         cleanup_recordings(Path(GLib.get_user_runtime_dir()))
 
@@ -119,7 +124,11 @@ class GrabApplication(Gtk.Application):
         return path
 
     def _notify(
-        self, title: str, body: str | None, annotation_token: str | None = None
+        self,
+        title: str,
+        body: str | None,
+        annotation_token: str | None = None,
+        offer_save: bool = False,
     ) -> None:
         notification = Gio.Notification.new(title)
         if body:
@@ -132,6 +141,12 @@ class GrabApplication(Gtk.Application):
                 "app.annotate",
                 GLib.Variant("s", annotation_token),
             )
+            if offer_save:
+                notification.add_button_with_target(
+                    "Save",
+                    "app.save-screenshot",
+                    GLib.Variant("s", annotation_token),
+                )
         self.send_notification("capture-status", notification)
 
     def _dismiss_notification(self, *_args: object) -> None:
@@ -142,6 +157,39 @@ class GrabApplication(Gtk.Application):
 
     def _stage_annotation(self, source: Path, saved: Path | None) -> str:
         return self._annotations.create(source, saved).token
+
+    def _save_screenshot(
+        self, _action: Gio.SimpleAction, parameter: GLib.Variant | None
+    ) -> None:
+        if parameter is None:
+            self._notify(
+                "Could not save screenshot", "The screenshot token is missing."
+            )
+            return
+        token = parameter.unpack()
+        if not isinstance(token, str):
+            self._notify(
+                "Could not save screenshot", "The screenshot token is invalid."
+            )
+            return
+        try:
+            pending = self._annotations.load(token)
+            if pending.saved_path is not None:
+                destination = pending.saved_path
+            else:
+                directory = self._screenshots_directory()
+                directory.mkdir(parents=True, exist_ok=True)
+                destination = next_screenshot_path(directory)
+                shutil.copy2(pending.image_path, destination)
+                try:
+                    self._annotations.set_saved_path(token, destination)
+                except Exception:
+                    destination.unlink(missing_ok=True)
+                    raise
+        except Exception as error:
+            self._notify("Could not save screenshot", str(error))
+            return
+        self._notify("Screenshot copied and saved", str(destination), token)
 
     def _open_annotation(
         self, _action: Gio.SimpleAction, parameter: GLib.Variant | None
@@ -329,10 +377,10 @@ class GrabApplication(Gtk.Application):
 
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         text.set_hexpand(True)
-        title = Gtk.Label(label="Save a copy")
+        title = Gtk.Label(label="Save screenshots automatically")
         title.set_xalign(0)
         title.add_css_class("heading")
-        description = Gtk.Label(label="Keep screenshots in Pictures/Screenshots")
+        description = Gtk.Label(label="Always keep a copy in Pictures/Screenshots")
         description.set_xalign(0)
         description.set_wrap(True)
         description.add_css_class("dim-label")

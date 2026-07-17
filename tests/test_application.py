@@ -52,6 +52,51 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(arguments[:2], ("Edit", "app.annotate"))
         self.assertEqual(arguments[2].unpack(), "abc123")
 
+    def test_unsaved_screenshot_notification_offers_save(self):
+        application = GrabApplication()
+        notification = MagicMock()
+
+        with (
+            patch("grab_app.application.Gio.Notification.new", return_value=notification),
+            patch("grab_app.application.Gio.ThemedIcon.new"),
+            patch.object(application, "send_notification"),
+        ):
+            application._notify("Screenshot copied", None, "abc123", offer_save=True)
+
+        calls = notification.add_button_with_target.call_args_list
+        self.assertEqual([call.args[0] for call in calls], ["Edit", "Save"])
+        self.assertEqual(calls[1].args[1], "app.save-screenshot")
+        self.assertEqual(calls[1].args[2].unpack(), "abc123")
+
+    def test_save_action_creates_copy_and_updates_pending_screenshot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            screenshots = root / "Pictures" / "Screenshots"
+            source = root / "source.png"
+            self.make_png(source)
+            store = PendingAnnotationStore(root / "runtime", screenshots)
+            pending = store.create(source, None)
+            application = GrabApplication()
+            application._annotations = store
+            parameter = MagicMock()
+            parameter.unpack.return_value = pending.token
+
+            with (
+                patch.object(
+                    application, "_screenshots_directory", return_value=screenshots
+                ),
+                patch.object(application, "_notify") as notify,
+            ):
+                application._save_screenshot(MagicMock(), parameter)
+
+            saved = list(screenshots.glob("Screenshot *.png"))
+            self.assertEqual(len(saved), 1)
+            self.assertEqual(saved[0].read_bytes(), source.read_bytes())
+            self.assertEqual(store.load(pending.token).saved_path, saved[0])
+            notify.assert_called_once_with(
+                "Screenshot copied and saved", str(saved[0]), pending.token
+            )
+
     def test_shell_capture_must_be_a_runtime_png(self):
         with tempfile.TemporaryDirectory() as temporary:
             runtime = Path(temporary)

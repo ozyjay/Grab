@@ -329,6 +329,15 @@ class PendingAnnotationStore:
         self._write_metadata(record.metadata_path, payload)
         return self.load(token)
 
+    def set_saved_path(self, token: str, path: Path) -> PendingAnnotation:
+        """Attach a newly saved copy to a pending screenshot."""
+        record = self.load(token)
+        saved_path = self.validate_saved_path(path)
+        payload = self._read_metadata(record.metadata_path)
+        payload["saved_path"] = str(saved_path)
+        self._write_metadata(record.metadata_path, payload)
+        return self.load(token)
+
     def load(self, token: str) -> PendingAnnotation:
         if not TOKEN_PATTERN.fullmatch(token):
             raise ValueError("The annotation token is invalid.")

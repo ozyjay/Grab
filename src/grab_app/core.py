@@ -22,7 +22,7 @@ class CaptureCoordinator:
         config: ConfigStore,
         load_image: Callable[[Path], object],
         set_clipboard: Callable[[object], None],
-        notify: Callable[[str, str | None, str | None], None],
+        notify: Callable[[str, str | None, str | None, bool], None],
         clipboard_owned: Callable[[object], None],
         finished: Callable[[], None],
         stage_annotation: Callable[[Path, Path | None], str],
@@ -44,7 +44,7 @@ class CaptureCoordinator:
         try:
             self.portal.capture(self._on_result)
         except Exception as error:
-            self.notify("Screenshot failed", str(error), None)
+            self.notify("Screenshot failed", str(error), None, False)
             self.finished()
 
     @staticmethod
@@ -59,12 +59,15 @@ class CaptureCoordinator:
 
     def _on_result(self, result: CaptureResult) -> None:
         if result.status == "cancelled":
-            self.notify("Screenshot cancelled", None, None)
+            self.notify("Screenshot cancelled", None, None, False)
             self.finished()
             return
         if result.status != "success" or not result.uri:
             self.notify(
-                "Screenshot failed", result.message or "Unknown screenshot error.", None
+                "Screenshot failed",
+                result.message or "Unknown screenshot error.",
+                None,
+                False,
             )
             self.finished()
             return
@@ -96,21 +99,23 @@ class CaptureCoordinator:
                 body = f"Could not save a copy: {save_error}"
                 if annotation_error:
                     body += f"\nAnnotation unavailable: {annotation_error}"
-                self.notify("Screenshot copied", body, annotation_token)
+                self.notify("Screenshot copied", body, annotation_token, True)
             elif saved:
                 body = str(saved)
                 if annotation_error:
                     body += f"\nAnnotation unavailable: {annotation_error}"
-                self.notify("Screenshot copied and saved", body, annotation_token)
+                self.notify(
+                    "Screenshot copied and saved", body, annotation_token, False
+                )
             else:
                 body = (
                     f"Annotation unavailable: {annotation_error}"
                     if annotation_error
                     else None
                 )
-                self.notify("Screenshot copied", body, annotation_token)
+                self.notify("Screenshot copied", body, annotation_token, True)
         except Exception as error:
-            self.notify("Screenshot failed", str(error), None)
+            self.notify("Screenshot failed", str(error), None, False)
         finally:
             if source is not None:
                 try:

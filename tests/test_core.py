@@ -25,6 +25,7 @@ class CaptureTests(unittest.TestCase):
         self.owned = []
         self.staged = []
         self.annotation_tokens = []
+        self.save_offers = []
         self.finished = 0
 
         def finish():
@@ -34,9 +35,10 @@ class CaptureTests(unittest.TestCase):
             self.staged.append((source.exists(), saved))
             return "annotation-token"
 
-        def notify(title, body, annotation_token):
+        def notify(title, body, annotation_token, offer_save):
             self.notifications.append((title, body))
             self.annotation_tokens.append(annotation_token)
+            self.save_offers.append(offer_save)
 
         return CaptureCoordinator(
             portal=portal,
@@ -67,6 +69,7 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(self.notifications, [("Screenshot copied", None)])
             self.assertEqual(self.staged, [(True, None)])
             self.assertEqual(self.annotation_tokens, ["annotation-token"])
+            self.assertEqual(self.save_offers, [True])
             self.assertEqual(self.finished, 1)
 
     def test_save_copy_creates_screenshot(self):
@@ -84,6 +87,7 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(len(saved), 1)
             self.assertEqual(saved[0].read_bytes(), b"png")
             self.assertEqual(self.notifications[0][0], "Screenshot copied and saved")
+            self.assertEqual(self.save_offers, [False])
 
     def test_shell_owned_clipboard_is_not_replaced_by_helper(self):
         with tempfile.TemporaryDirectory() as temporary:
