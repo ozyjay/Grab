@@ -21,6 +21,7 @@ const SCREENCAST_BUS = 'org.gnome.Shell.Screencast';
 const SCREENCAST_PATH = '/org/gnome/Shell/Screencast';
 const SCREENCAST_INTERFACE = 'org.gnome.Shell.Screencast';
 const RECORDING_DURATIONS = [5, 10, 15, 30, 60];
+const DEFAULT_RECORDING_DURATION = 30;
 const CAPTURE_DELAY_MS = 200;
 
 const DurationDialog = GObject.registerClass(
@@ -103,7 +104,7 @@ class GrabIndicator extends PanelMenu.Button {
         this._remaining = 0;
         this._timerId = 0;
         this._stopping = false;
-        this._customDuration = 30;
+        this._customDuration = DEFAULT_RECORDING_DURATION;
         this._durationDialog = null;
         this._destroying = false;
         this._captureInProgress = false;
@@ -114,6 +115,20 @@ class GrabIndicator extends PanelMenu.Button {
         this._icon = new St.Icon({
             icon_name: 'camera-photo-symbolic',
             style_class: 'system-status-icon',
+            reactive: true,
+        });
+        this._icon.connect('button-press-event', (_actor, event) => {
+            const button = event.get_button();
+            if (button === Clutter.BUTTON_MIDDLE) {
+                this._startRecording(DEFAULT_RECORDING_DURATION);
+                return Clutter.EVENT_STOP;
+            }
+            if (button === Clutter.BUTTON_SECONDARY) {
+                this._capture();
+                return Clutter.EVENT_STOP;
+            }
+
+            return Clutter.EVENT_PROPAGATE;
         });
         this.add_child(this._icon);
 
