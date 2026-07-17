@@ -115,9 +115,17 @@ class GrabApplication(Gtk.Application):
 
     @staticmethod
     def _validated_capture_path(path: Path) -> Path:
-        path = path.resolve(strict=True)
+        if path.is_symlink():
+            raise ValueError("The screenshot file is invalid.")
         runtime_directory = Path(GLib.get_user_runtime_dir()).resolve(strict=True)
-        if path.parent != runtime_directory or not path.name.startswith("grab-"):
+        capture_directory = runtime_directory / "grab-captures"
+        if capture_directory.is_symlink():
+            raise ValueError("The screenshot directory is invalid.")
+        capture_directory = capture_directory.resolve(strict=True)
+        if capture_directory.parent != runtime_directory:
+            raise ValueError("The screenshot directory is invalid.")
+        path = path.resolve(strict=True)
+        if path.parent != capture_directory or not path.name.startswith("grab-"):
             raise ValueError("The screenshot file is outside Grab's runtime directory.")
         if path.suffix.lower() != ".png" or not path.is_file():
             raise ValueError("The screenshot file is invalid.")

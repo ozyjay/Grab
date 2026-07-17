@@ -100,7 +100,9 @@ class ApplicationTests(unittest.TestCase):
     def test_shell_capture_must_be_a_runtime_png(self):
         with tempfile.TemporaryDirectory() as temporary:
             runtime = Path(temporary)
-            capture = runtime / "grab-example.png"
+            capture_directory = runtime / "grab-captures"
+            capture_directory.mkdir()
+            capture = capture_directory / "grab-example.png"
             capture.write_bytes(b"png")
 
             with patch(
@@ -113,6 +115,11 @@ class ApplicationTests(unittest.TestCase):
                 outside.write_bytes(b"png")
                 with self.assertRaises(ValueError):
                     GrabApplication._validated_capture_path(outside)
+
+                old_location = runtime / "grab-example.png"
+                old_location.write_bytes(b"png")
+                with self.assertRaises(ValueError):
+                    GrabApplication._validated_capture_path(old_location)
 
     def test_loaded_image_exposes_png_clipboard_format(self):
         with tempfile.TemporaryDirectory() as temporary:

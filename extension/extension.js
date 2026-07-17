@@ -21,6 +21,7 @@ const SCREENCAST_BUS = 'org.gnome.Shell.Screencast';
 const SCREENCAST_PATH = '/org/gnome/Shell/Screencast';
 const SCREENCAST_INTERFACE = 'org.gnome.Shell.Screencast';
 const RECORDING_DURATIONS = [5, 10, 15, 30, 60];
+const CAPTURE_DELAY_MS = 200;
 
 const DurationDialog = GObject.registerClass(
 class DurationDialog extends ModalDialog.ModalDialog {
@@ -105,6 +106,8 @@ class GrabIndicator extends PanelMenu.Button {
         this._customDuration = 30;
         this._durationDialog = null;
         this._destroying = false;
+        this._captureInProgress = false;
+        this._captureTimeoutId = 0;
         this._cancellable = new Gio.Cancellable();
         this._screencast = null;
         this._errorSignal = 0;
@@ -153,15 +156,37 @@ class GrabIndicator extends PanelMenu.Button {
             return;
 
         this._captureInProgress = true;
+        this.menu.close();
+        this._captureTimeoutId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT,
+            CAPTURE_DELAY_MS,
+            () => {
+                this._captureTimeoutId = 0;
+                if (this._destroying) {
+                    this._captureInProgress = false;
+                    return GLib.SOURCE_REMOVE;
+                }
+                this._takeScreenshot();
+                return GLib.SOURCE_REMOVE;
+            });
+    }
+
+    _takeScreenshot() {
+        const captureDirectory = GLib.build_filenamev([
+            GLib.get_user_runtime_dir(),
+            'grab-captures',
+        ]);
         const filename = `grab-${GLib.uuid_string_random()}.png`;
         const path = GLib.build_filenamev([
-            GLib.get_user_runtime_dir(),
+            captureDirectory,
             filename,
         ]);
         const file = Gio.File.new_for_path(path);
         let stream;
 
         try {
+            if (GLib.mkdir_with_parents(captureDirectory, 0o700) !== 0)
+                throw new Error('Could not prepare Grab\'s temporary capture directory.');
             stream = file.create(Gio.FileCreateFlags.PRIVATE, null);
             const screenshot = new Shell.Screenshot();
             screenshot.screenshot(false, stream, (source, result) => {
@@ -414,6 +439,11 @@ class GrabIndicator extends PanelMenu.Button {
 
     destroy() {
         this._destroying = true;
+        if (this._captureTimeoutId) {
+            GLib.source_remove(this._captureTimeoutId);
+            this._captureTimeoutId = 0;
+            this._captureInProgress = false;
+        }
         this._durationDialog?.close();
         this._durationDialog = null;
         if (this._recordingPath !== null && this._screencast !== null) {

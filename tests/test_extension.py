@@ -48,6 +48,13 @@ class ExtensionTests(unittest.TestCase):
         self.assertIn("`${pathStem}.webm`", source)
         self.assertIn("_stopFailedRecording", source)
         self.assertIn("new Shell.Screenshot()", source)
+        self.assertIn("'grab-captures'", source)
+        self.assertIn("GLib.mkdir_with_parents(captureDirectory, 0o700)", source)
+        self.assertIn("this.menu.close()", source)
+        self.assertIn("CAPTURE_DELAY_MS", source)
+        self.assertLess(
+            source.index("this.menu.close()"), source.index("this._takeScreenshot()")
+        )
         self.assertIn("St.Clipboard.get_default().set_content", source)
         self.assertIn("'--capture-file'", source)
         self.assertIn("'--recording-file'", source)
