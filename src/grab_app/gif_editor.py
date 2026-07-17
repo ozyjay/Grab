@@ -91,7 +91,7 @@ class GifCropWindow(Gtk.ApplicationWindow):
 
         self.set_child(layout)
         self.connect("close-request", self._close_requested)
-        if self.media.get_prepared():
+        if self.media.is_prepared():
             self._initialise_dimensions()
 
     def _build_toolbar(self) -> Gtk.Widget:
@@ -123,7 +123,7 @@ class GifCropWindow(Gtk.ApplicationWindow):
         return toolbar
 
     def _media_prepared(self, _media: Gtk.MediaStream, _parameter: object) -> None:
-        if self.media.get_prepared():
+        if self.media.is_prepared():
             self._initialise_dimensions()
 
     def _initialise_dimensions(self) -> None:
