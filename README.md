@@ -11,11 +11,13 @@ notification also includes a **Save** action that writes the screenshot to
 runtime directory for up to 24 hours; they are not permanent saved screenshots.
 
 Grab can also record a silent screencast of the whole desktop, including the
-pointer. Choose a preset duration from **Record GIF**, or enter a custom duration
-from 1 to 300 seconds. Recording stops automatically when the time expires, or
-can be stopped early from the menu. After recording, drag or resize the crop,
-preview the result, and select **Save GIF**. GIFs are optimised to 15 frames per
-second and a maximum longest side of 1280 pixels.
+pointer. Choose a preset from **GIF Duration**, or enter a custom duration from
+1 to 300 seconds, then middle-click the top-bar icon to record. The default is
+5 seconds, and middle-click uses the most recently selected duration. Recording
+stops automatically when the time expires, or can be stopped early from the
+menu. After recording, drag or resize the crop, preview the result, and select
+**Save GIF**. GIFs are optimised to 15 frames per second and a maximum longest
+side of 1280 pixels.
 
 ## Install
 
@@ -27,10 +29,10 @@ The installer automatically disables and re-enables an extension GNOME Shell
 already knows about. GNOME caches new or changed extension JavaScript, however,
 so a first installation or extension-code upgrade can still require one logout
 and login. Select the top-bar icon to open Grab's screenshot, GIF recording,
-and preferences actions. Middle-click the icon to start a 30-second GIF
-recording, or right-click it to take a screenshot directly. **Preferences** can
-enable saving screenshots under `Pictures/Screenshots`. Select **How to Use
-Grab** from the menu for a reminder of these shortcuts.
+duration, and preferences actions. Middle-click the icon to start a GIF recording
+with the selected duration, or right-click it to take a screenshot directly.
+**Preferences** can enable saving screenshots under `Pictures/Screenshots`.
+Select **How to Use Grab** from the menu for a reminder of these shortcuts.
 
 Select **Edit** on a screenshot notification to open the image editor. Use
 **Pen** to choose a colour and width and draw over the image. Use **Crop** to

@@ -21,17 +21,17 @@ const SCREENCAST_BUS = 'org.gnome.Shell.Screencast';
 const SCREENCAST_PATH = '/org/gnome/Shell/Screencast';
 const SCREENCAST_INTERFACE = 'org.gnome.Shell.Screencast';
 const RECORDING_DURATIONS = [5, 10, 15, 30, 60];
-const DEFAULT_RECORDING_DURATION = 30;
+const DEFAULT_RECORDING_DURATION = 5;
 const CAPTURE_DELAY_MS = 200;
 
 const DurationDialog = GObject.registerClass(
 class DurationDialog extends ModalDialog.ModalDialog {
-    _init(initialDuration, record) {
+    _init(initialDuration, selectDuration) {
         super._init();
-        this._record = record;
+        this._selectDuration = selectDuration;
 
         const title = new St.Label({
-            text: 'Record an animated GIF',
+            text: 'Set GIF recording duration',
             style_class: 'headline',
         });
         this.contentLayout.add_child(title);
@@ -59,7 +59,7 @@ class DurationDialog extends ModalDialog.ModalDialog {
             key: Clutter.KEY_Escape,
         });
         this._recordButton = this.addButton({
-            label: 'Record',
+            label: 'Set Duration',
             action: () => this._submit(),
             default: true,
         });
@@ -88,7 +88,7 @@ class DurationDialog extends ModalDialog.ModalDialog {
         if (duration === null)
             return;
         this.close();
-        this._record(duration);
+        this._selectDuration(duration);
     }
 
 });
@@ -104,7 +104,7 @@ class GrabIndicator extends PanelMenu.Button {
         this._remaining = 0;
         this._timerId = 0;
         this._stopping = false;
-        this._customDuration = DEFAULT_RECORDING_DURATION;
+        this._selectedRecordingDuration = DEFAULT_RECORDING_DURATION;
         this._durationDialog = null;
         this._destroying = false;
         this._captureInProgress = false;
@@ -120,7 +120,7 @@ class GrabIndicator extends PanelMenu.Button {
         this._icon.connect('button-press-event', (_actor, event) => {
             const button = event.get_button();
             if (button === Clutter.BUTTON_MIDDLE) {
-                this._startRecording(DEFAULT_RECORDING_DURATION);
+                this._startRecording(this._selectedRecordingDuration);
                 return Clutter.EVENT_STOP;
             }
             if (button === Clutter.BUTTON_SECONDARY) {
@@ -133,16 +133,21 @@ class GrabIndicator extends PanelMenu.Button {
         this.add_child(this._icon);
 
         this.menu.addAction('Take Screenshot', () => this._capture());
-        const recordingMenu = new PopupMenu.PopupSubMenuMenuItem('Record GIF');
+        const recordingMenu = new PopupMenu.PopupSubMenuMenuItem('GIF Duration');
+        this._durationItems = new Map();
         for (const duration of RECORDING_DURATIONS) {
-            recordingMenu.menu.addAction(
-                `${duration} seconds`,
-                () => this._startRecording(duration));
+            const item = new PopupMenu.PopupMenuItem(`${duration} seconds`);
+            item.connect('activate', () => this._setRecordingDuration(duration));
+            recordingMenu.menu.addMenuItem(item);
+            this._durationItems.set(duration, item);
         }
         recordingMenu.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        recordingMenu.menu.addAction('Custom Duration…', () => this._customRecording());
+        this._customDurationItem = new PopupMenu.PopupMenuItem('Custom Duration…');
+        this._customDurationItem.connect('activate', () => this._chooseCustomDuration());
+        recordingMenu.menu.addMenuItem(this._customDurationItem);
         this.menu.addMenuItem(recordingMenu);
         this._recordingMenu = recordingMenu;
+        this._updateDurationSelection();
 
         this._stopItem = new PopupMenu.PopupMenuItem('Stop Recording');
         this._stopItem.connect('activate', () => this._stopRecording());
@@ -156,7 +161,7 @@ class GrabIndicator extends PanelMenu.Button {
     _showHowTo() {
         Main.notify(
             'How to use Grab',
-            'Left-click opens this menu. Middle-click starts a 30-second GIF recording. Right-click takes a screenshot.');
+            `Left-click opens this menu to set the GIF duration. Middle-click starts a ${this._selectedRecordingDuration}-second GIF recording. Right-click takes a screenshot.`);
     }
 
     _launch(...arguments_) {
@@ -244,14 +249,32 @@ class GrabIndicator extends PanelMenu.Button {
         }
     }
 
-    _customRecording() {
+    _setRecordingDuration(duration) {
+        this._selectedRecordingDuration = duration;
+        this._updateDurationSelection();
+    }
+
+    _updateDurationSelection() {
+        for (const [duration, item] of this._durationItems) {
+            const ornament = duration === this._selectedRecordingDuration
+                ? PopupMenu.Ornament.DOT
+                : PopupMenu.Ornament.NONE;
+            item.setOrnament(ornament);
+        }
+        const isPreset = this._durationItems.has(this._selectedRecordingDuration);
+        this._customDurationItem.setOrnament(
+            isPreset ? PopupMenu.Ornament.NONE : PopupMenu.Ornament.DOT);
+        this._recordingMenu.label.text =
+            `GIF Duration: ${this._selectedRecordingDuration} seconds`;
+    }
+
+    _chooseCustomDuration() {
         if (this._recordingPath !== null)
             return;
         this._durationDialog?.close();
-        this._durationDialog = new DurationDialog(this._customDuration, duration => {
-            this._customDuration = duration;
+        this._durationDialog = new DurationDialog(this._selectedRecordingDuration, duration => {
+            this._setRecordingDuration(duration);
             this._durationDialog = null;
-            this._startRecording(duration);
         });
         this._durationDialog.connect('closed', () => {
             this._durationDialog = null;
