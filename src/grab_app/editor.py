@@ -35,7 +35,7 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         self.complete = complete
         self.cancel = cancel
         self._resolved = False
-        self._mode = "pen"
+        self._mode = "crop"
         self._drag_origin: tuple[float, float] | None = None
         self._crop_selection: CropRectangle | None = None
         self._crop_drag_handle: str | None = None
@@ -91,11 +91,10 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         self.pen_button = Gtk.ToggleButton.new_with_label("Pen")
         self.crop_button = Gtk.ToggleButton.new_with_label("Crop")
         self.crop_button.set_group(self.pen_button)
-        self.pen_button.set_active(True)
         self.pen_button.connect("clicked", lambda *_args: self._select_mode("pen"))
         self.crop_button.connect("clicked", lambda *_args: self._select_mode("crop"))
-        toolbar.append(self.pen_button)
         toolbar.append(self.crop_button)
+        toolbar.append(self.pen_button)
 
         colour_dialog = Gtk.ColorDialog.new()
         colour_dialog.set_title("Pen colour")
@@ -146,7 +145,7 @@ class AnnotationWindow(Gtk.ApplicationWindow):
         done_button.add_css_class("suggested-action")
         done_button.connect("clicked", lambda *_args: self._done())
         toolbar.append(done_button)
-        self._update_buttons()
+        self._select_mode(self._mode)
         return toolbar
 
     def _fit(self, width: int, height: int) -> tuple[float, float, float]:

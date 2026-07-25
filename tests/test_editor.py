@@ -1,5 +1,6 @@
-from types import SimpleNamespace
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from grab_app.editor import AnnotationWindow
@@ -43,6 +44,18 @@ class EditorModeTests(unittest.TestCase):
     def test_unknown_mode_is_rejected(self):
         with self.assertRaises(ValueError):
             AnnotationWindow._select_mode(self.make_window(), "erase")
+
+    def test_editor_opens_with_crop_before_pen(self):
+        source = (
+            Path(__file__).resolve().parents[1] / "src" / "grab_app" / "editor.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('self._mode = "crop"', source)
+        self.assertLess(
+            source.index("toolbar.append(self.crop_button)"),
+            source.index("toolbar.append(self.pen_button)"),
+        )
+        self.assertIn("self._select_mode(self._mode)", source)
 
 
 class GifCropTests(unittest.TestCase):

@@ -1,14 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3584e4"/>
-      <stop offset="1" stop-color="#1c71d8"/>
+    <linearGradient id="background" x1="16" y1="14" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#62a0ea"/>
+      <stop offset="1" stop-color="#1a5fb4"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="27" y1="31" x2="87" y2="74" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#99c1f1"/>
+      <stop offset="1" stop-color="#3584e4"/>
     </linearGradient>
   </defs>
+
   <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#background)"/>
-  <path d="M39 43h13l5-8h14l5 8h13c7 0 12 5 12 12v34c0 7-5 12-12 12H39c-7 0-12-5-12-12V55c0-7 5-12 12-12z" fill="#fff"/>
-  <circle cx="64" cy="71" r="19" fill="#1c71d8"/>
-  <circle cx="64" cy="71" r="11" fill="#99c1f1"/>
-  <circle cx="88" cy="55" r="4" fill="#3584e4"/>
+
+  <!-- Speed lines make the screen read as being pulled to the right. -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" opacity=".8">
+    <path d="M15 42h9" stroke-width="5"/>
+    <path d="M13 54h11" stroke-width="5"/>
+    <path d="M17 66h7" stroke-width="5"/>
+  </g>
+
+  <!-- Screen and stand. -->
+  <path d="M43 86h27v11H43z" fill="#c0d9f7" opacity=".45"/>
+  <path d="M34 101h45" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="7"/>
+  <rect x="21" y="24" width="76" height="65" rx="10" fill="#0d3b72" opacity=".22"/>
+  <rect x="19" y="21" width="76" height="65" rx="10" fill="#ffffff"/>
+  <rect x="26" y="28" width="62" height="44" rx="4" fill="url(#screen)"/>
+  <path d="M29 64l15-14 10 9 12-12 19 17v5H29z" fill="#ffffff" opacity=".55"/>
+  <circle cx="74" cy="40" r="6" fill="#ffffff" opacity=".72"/>
+  <circle cx="57" cy="79" r="3" fill="#1a5fb4"/>
+
+  <!-- A hand curls around the screen's right edge and pulls it. -->
+  <path
+    d="M117 71c-5-1-9-5-12-10l-7-13c-2-4-6-5-9-3-4 2-5 6-3 10l6 11-3-2c-4-2-8 0-9 4-1 3 1 7 4 8l8 4-5 1c-4 1-6 4-5 8 1 3 4 5 8 5l7-1-3 3c-3 3-3 7 0 10 3 2 7 2 10-1l7-7c4-4 7-9 8-15l1-8c0-2-1-4-3-4z"
+    fill="#ffbe6f"
+    stroke="#0d3b72"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="4"
+  />
+  <path d="M92 66l7 12" fill="none" stroke="#e58b3a" stroke-linecap="round" stroke-width="3"/>
+  <path d="M92 80l9 5" fill="none" stroke="#e58b3a" stroke-linecap="round" stroke-width="3"/>
 </svg>
