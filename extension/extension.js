@@ -115,8 +115,9 @@ class GrabIndicator extends PanelMenu.Button {
         this._icon = new St.Icon({
             icon_name: 'camera-photo-symbolic',
             style_class: 'system-status-icon',
+            reactive: true,
         });
-        this.connect('button-press-event', (_actor, event) => {
+        this._icon.connect('button-press-event', (_actor, event) => {
             const button = event.get_button();
             if (button === Clutter.BUTTON_MIDDLE) {
                 this._startRecording(this._selectedRecordingDuration);
